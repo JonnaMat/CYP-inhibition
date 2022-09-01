@@ -23,10 +23,10 @@ chemistry is not required, an interest in chemistry and pharmaceuticals is desir
 c.a. 3 months (one term, from late August to November)
 
 **Contact:** 
-industry mentors (AstraZeneca):
-Dr. Vigneshwari Subramanian, Senior Data Scientist, Data Science and AI group (Clinical
+industry mentors (AstraZeneca): 
+* Dr. Vigneshwari Subramanian, Senior Data Scientist, Data Science and AI group (Clinical
 Pharmacology and Safety Sciences), Sweden. vigneshwari.subramanian@astrazeneca.com
-Dr. Avid Afzal, Senior Data Scientist, Data Sciences and Quantitative Biology, Cambridge.
+* Dr. Avid Afzal, Senior Data Scientist, Data Sciences and Quantitative Biology, Cambridge.
 avid.afzal1@astrazeneca.com
 
 
