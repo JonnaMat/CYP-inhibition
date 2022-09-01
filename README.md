@@ -33,5 +33,4 @@ avid.afzal1@astrazeneca.com
 # Organization
 
 * Current tasks can be found under *Issues*
-**LiteratureReview**
-* Add main insights under data-science-project/LiteratureReview/key_publications 
+* **LiteratureReview:** Add main insights under data-science-project/LiteratureReview/key_publications 
