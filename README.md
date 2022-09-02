@@ -33,4 +33,4 @@ avid.afzal1@astrazeneca.com
 # Organization
 
 * Current tasks can be found under *Issues*
-* **LiteratureReview:** Add main insights under data-science-project/LiteratureReview/key_publications 
+* **LiteratureReview:** Add main insights to Notion and include reference / source: https://www.notion.so/AstraZeneca-Machine-Learning-models-on-Cytochrome-P450s-c80a83fe1e6948e1981f3b29cd9c6d7b
