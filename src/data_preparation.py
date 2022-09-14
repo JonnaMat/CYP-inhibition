@@ -10,7 +10,9 @@ def load_dataset_split(
     frac: Optional[List[float]] = None
 ):
     """Load dataset train-, val-, test-split given a `task`."""
-    frac = [0.7, 0.1, 0.2] if frac is None else frac
     data = ADME(name=task+'_Veith')
-    split = data.get_split(method=method, seed=1, frac=frac)
+    split = data.get_split(
+        method=method,
+        seed=1,
+        frac=[0.7, 0.1, 0.2] if frac is None else frac)
     return split
