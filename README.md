@@ -1,4 +1,4 @@
-# data-science-project
+# CYP-inhibition
 
 **Project description:** 
 Having the potential to predict drug metabolism accurately would not only
