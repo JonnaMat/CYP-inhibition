@@ -1,7 +1,9 @@
-'''Data preparation.'''
+'''Data preparation and exploration.'''
 
 from typing import List, Literal, Optional
 from tdc.single_pred import ADME
+from rdkit import Chem
+from rdkit.Chem import Draw
 
 
 def load_dataset_split(
@@ -16,3 +18,8 @@ def load_dataset_split(
         seed=1,
         frac=[0.7, 0.1, 0.2] if frac is None else frac)
     return split
+
+def draw_molecule(smiles: str):
+    """Draw molecule from SMILES string."""
+    mol = Chem.MolFromSmiles(smiles)
+    return Draw.MolToImage(mol)
