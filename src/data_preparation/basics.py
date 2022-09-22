@@ -6,7 +6,7 @@ from rdkit import Chem
 from rdkit.Chem import Draw
 
 
-def load_dataset_split(
+def load_tdc_dataset_split(
     task: Literal['CYP2C19', 'CYP2D6', 'CYP3A4', 'CYP1A2', 'CYP2C9'],
     method: Literal['random', 'scaffold'] = 'random',
     frac: Optional[List[float]] = None
@@ -24,6 +24,7 @@ def draw_molecule(smiles: str):
     mol = Chem.MolFromSmiles(smiles)
     return Draw.MolToImage(mol)
 
+# TODO 
 def read_train_data(filename):
     x = []
     y = []
