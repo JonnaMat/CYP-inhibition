@@ -23,3 +23,24 @@ def draw_molecule(smiles: str):
     """Draw molecule from SMILES string."""
     mol = Chem.MolFromSmiles(smiles)
     return Draw.MolToImage(mol)
+
+def read_train_data(filename):
+    x = []
+    y = []
+    max_len = 0
+    with open(filename) as infile:
+        infile.readline()
+        for line in infile:
+            line = line.strip('\n\r ')
+            line = line.split(",")
+            y.append(line[len(line) - 1])
+            fingerprint_bit_vector = list(map(int, line[12].strip()))
+            line = line[1:12] + fingerprint_bit_vector
+            max_len = max(max_len, len(line))
+            x.append(line)
+    print("max_len: {}".format(max_len))
+    x = np.array(x)
+    x = x.astype(np.float)
+    y = np.array(y)
+    y = y.astype(np.int)
+    return x, y, max_len
