@@ -1,9 +1,11 @@
 '''Data preparation and exploration.'''
 
-from typing import List, Literal, Optional
+from typing import Iterable, List, Literal, Optional, Union
 from tdc.single_pred import ADME
 from rdkit import Chem
 from rdkit.Chem import Draw
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 def load_tdc_dataset_split(
@@ -19,12 +21,29 @@ def load_tdc_dataset_split(
         frac=[0.7, 0.1, 0.2] if frac is None else frac)
     return split
 
-def draw_molecule(smiles: str):
-    """Draw molecule from SMILES string."""
-    mol = Chem.MolFromSmiles(smiles)
-    return Draw.MolToImage(mol)
 
-# TODO 
+def plot_counts(data: List, titles: List[str]):
+    _, axes = plt.subplots(1, len(data), figsize=(20, 5))
+    if len(titles) == 1:
+        axes.set_title(titles[0])
+        ncount = len(data[0])
+        sns.countplot(data[0], ax=axes)
+        for p in axes.patches:
+            axes.annotate('%{:.2f}'.format(100.0*p.get_height()/ncount),
+                          (p.get_x()+0.1, p.get_height()+5))
+    else:
+        for ax, (d, title) in zip(axes, zip(data, titles)):
+            ax.set_title(title)
+            ncount = len(d)
+            sns.countplot(d, ax=ax)
+            for p in ax.patches:
+                ax.annotate('%{:.2f}'.format(100.0*p.get_height()/ncount),
+                            (p.get_x()+0.1, p.get_height()+5))
+
+    plt.show()
+
+
+# TODO
 def read_train_data(filename):
     x = []
     y = []
