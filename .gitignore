@@ -1,2 +1,10 @@
 /src/data
 /src/__pycache__
+
+# ignore .cpython_.pyc files
+*.log
+*.pot
+*.pyc
+*/*/*/__pycache__/
+*/*/__pycache__/
+*/__pycache__/
