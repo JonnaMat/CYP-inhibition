@@ -1,26 +1,25 @@
 """Data preparation and exploration."""
 
-from typing import Iterable, List, Literal, Optional, Union
-from tdc.single_pred import ADME
-from copy import deepcopy
 import os
-from rdkit import Chem
+from pathlib import Path
+from typing import List, Literal, Optional
 import pandas as pd
+from tdc.single_pred import ADME
+
+# pylint: disable=no-name-in-module
 from rdkit.Chem import Descriptors, MolFromSmiles
 from rdkit.ML.Descriptors.MoleculeDescriptors import MolecularDescriptorCalculator
-from pathlib import Path
-
 
 
 def calculate_fingerprints(data: pd.DataFrame) -> pd.DataFrame:
     """Calculate a number of fingerprints and add to 'data'."""
-    pass
 
 
 def calculate_descriptors(data: pd.DataFrame) -> pd.DataFrame:
     """Calculate all available descriptors for the given molecules and add to 'data'."""
 
     molecules = [MolFromSmiles(smiles) for smiles in list(data["Drug"])]
+    # pylint: disable=protected-access
     calculator = MolecularDescriptorCalculator([x[0] for x in Descriptors._descList])
     header = calculator.GetDescriptorNames()
 
@@ -60,7 +59,7 @@ def load_tdc_dataset_split(
 def get_full_dataset(task):
     """Return the raw dataset consisting of all 208 descriptors including NaN values and saves dataset."""
 
-    filename = f"data/{task.lower()}/raw_dataset_descriptors.csv" # TODO
+    filename = f"data/{task.lower()}/raw_dataset_descriptors.csv"  # TODO
 
     # create directories if necessary
     Path(f"data/{task.lower()}").mkdir(parents=True, exist_ok=True)
