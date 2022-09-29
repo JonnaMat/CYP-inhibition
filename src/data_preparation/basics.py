@@ -33,7 +33,6 @@ def calculate_descriptors(data: pd.DataFrame) -> pd.DataFrame:
 
 def extract_null(data: pd.DataFrame):
     """Returns all row/column pairs with NaN values."""
-    data = data.iloc[1:]  # drop first row
     null_columns_data = data[data.columns[data.isnull().any()]]
     return pd.merge(
         data[["Drug", "Drug_ID", "Y"]],
