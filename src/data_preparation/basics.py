@@ -50,6 +50,7 @@ def load_tdc_dataset_split(
 ):
     """Load dataset train-, val-, test-split given a `task`."""
     data = ADME(name=task + "_Veith")
+    data.print_stats()
     split = data.get_split(
         method=method, seed=1, frac=[0.7, 0.1, 0.2] if frac is None else frac
     )

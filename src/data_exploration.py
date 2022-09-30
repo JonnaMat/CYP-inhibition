@@ -13,7 +13,7 @@ def plot_counts(
     kind: Literal["bar", "pie"] = "bar",
     legend_labels: Optional[List] = None,
 ):
-    """Creates one bar plot for each data/title pair"""
+    """Creates one plot for each data/title pair of kind `kind`."""
     _, axes = plt.subplots(1, len(data), figsize=(20, 5), squeeze=False)
     axes = axes[0]
 
@@ -21,6 +21,7 @@ def plot_counts(
 
     for axis, (dat, title) in zip(axes, zip(data, titles)):
         axis.set_title(title)
+
         if kind == "pie":
             counts = Counter(list(dat))
             legend_labels = counts.keys() if legend_labels is None else legend_labels
@@ -33,6 +34,7 @@ def plot_counts(
                 shadow=True,
             )
             plt.legend(title="Y", labels=legend_labels, loc="lower right")
+
         elif kind == "bar":
             ncount = len(dat)
             # pylint: disable=too-many-function-args
