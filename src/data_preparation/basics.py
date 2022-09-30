@@ -7,8 +7,11 @@ import pandas as pd
 from tdc.single_pred import ADME
 
 # pylint: disable=no-name-in-module
-from rdkit.Chem import Descriptors, MolFromSmiles
+from rdkit.Chem import Descriptors, MolFromSmiles, MolToSmiles
 from rdkit.ML.Descriptors.MoleculeDescriptors import MolecularDescriptorCalculator
+
+from molvs.standardize import Standardizer
+from molvs.fragment import FragmentRemover
 
 
 def calculate_fingerprints(data: pd.DataFrame) -> pd.DataFrame:
@@ -49,16 +52,40 @@ def load_tdc_dataset_split(
 ):
     """Load dataset train-, val-, test-split given a `task`."""
     data = ADME(name=task + "_Veith")
-    data.print_stats()
     split = data.get_split(
         method=method, seed=1, frac=[0.7, 0.1, 0.2] if frac is None else frac
     )
     return split
 
 
-def get_full_dataset(task):
-    """Return the raw dataset consisting of all 208 descriptors including NaN values and saves dataset."""
+MOL_STANDARDIZER = Standardizer()
+MOL_FRAGMENT_REMOVER = FragmentRemover()
 
+
+def normalize_smiles(smiles: str) -> str:
+    """Return normalized smiled string given `smiles`."""
+    molecule = MolFromSmiles(smiles)
+    normalized_molecule = MOL_FRAGMENT_REMOVER.remove(
+        MOL_STANDARDIZER.standardize(molecule)
+    )
+    return MolToSmiles(normalized_molecule)
+
+
+def data_preprocessing(
+    task: Literal["CYP2C19", "CYP2D6", "CYP3A4", "CYP1A2", "CYP2C9"]
+) -> pd.DataFrame:
+    """
+    Return the raw dataset consisting of all 208 descriptors including NaN
+    values and saves dataset.
+
+    The following steps are performed:
+
+        1. fetch dataset from TDC
+        2. Normalize smiles strings
+        3. Calculate Descriptors
+        4. Normalize Descriptor values
+        5. TODO Claculate Fingerprints
+    """
     filename = f"data/{task.lower()}/raw_dataset_descriptors.csv"  # TODO
 
     # create directories if necessary
@@ -66,12 +93,36 @@ def get_full_dataset(task):
 
     # check if dataset already exists
     if os.path.isfile(filename):
-        return pd.read_csv(filename)
+        # pylint: disable=logging-fstring-interpolation
+        print(f"Dataset already exists, returning {filename}.")
+        return pd.read_csv(filename).drop("Unnamed: 0", axis=1)
 
+    print("Fetching Dataset from TDC...")
     tdc_data = load_tdc_dataset_split(task, frac=[1, 0, 0])["train"]
+
+    print("Normalizing smiles strings...")
+    tdc_data["Drug"] = tdc_data["Drug"].map(normalize_smiles)
+
+    print("Removing Small molecules...")
+    print(tdc_data["Drug"][lambda drugs: [len(drug) <= 9 for drug in drugs]].to_string())
+
+    remove_molecules = []
+    num_remove_molecules = int(input("Enter number of molecules to remove: "))
+
+    for _ in range(0, num_remove_molecules):
+        remove_molecules.append(int(input("Index of molecule to be removed: ")))
+
+    tdc_data = tdc_data.drop(remove_molecules)
+
+    print("Calculating descriptors...")
     descriptor_data = calculate_descriptors(tdc_data)
-    # TODO add fingerprints
+    # 4. TODO
+    # 5. TODO
+
+    # pylint: disable=logging-fstring-interpolation
+    print(f"Save dataset to {filename}.")
     descriptor_data.to_csv(filename)
+
     return descriptor_data
 
 
