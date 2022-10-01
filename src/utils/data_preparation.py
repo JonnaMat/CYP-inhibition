@@ -2,10 +2,12 @@
 
 import os
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import List, Literal, Dict, Optional
 from time import sleep
 from copy import deepcopy
 import pandas as pd
+import numpy as np
+
 from tdc.single_pred import ADME
 
 # pylint: disable=no-name-in-module
@@ -47,6 +49,25 @@ def extract_null(data: pd.DataFrame):
         left_index=True,
         right_index=True,
     )
+
+
+def dataset_split(
+    data: pd.DataFrame, frac: Optional[List[float]] = None
+) -> Dict[Literal["train", "val", "test"], pd.DataFrame]:
+    """Shuffle the dataset and create random split of the dataset."""
+
+    train_frac, val_frac, _ = [0.7, 0.1, 0.2] if frac is None else frac
+    n_samples = len(data)
+    # pylint: disable=unbalanced-tuple-unpacking
+    train, val, test = np.split(
+        data.sample(frac=1, random_state=42, ignore_index=True),
+        [int(train_frac * n_samples), int((train_frac + val_frac) * n_samples)],
+    )
+    return {
+        "train": train,
+        "valid": val,
+        "test": test,
+    }
 
 
 def load_tdc_dataset_split(
