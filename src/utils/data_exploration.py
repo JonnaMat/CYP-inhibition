@@ -2,8 +2,10 @@
 
 from collections import Counter
 from typing import List, Literal, Optional
+from math import ceil
 import matplotlib.pyplot as plt
 import seaborn as sns
+import pandas as pd
 
 
 def plot_counts(
@@ -11,10 +13,10 @@ def plot_counts(
     titles: List[str],
     legend_title: str,
     suptitle: Optional[str] = None,
-    kind: Literal["bar", "pie"] = "bar",
+    kind: Literal["bar", "pie"] = "pie",
     legend_labels: Optional[List] = None,
 ):
-    """Creates one plot for each data/title pair of kind `kind`."""
+    """Create one plot for each data/title pair of kind `kind`."""
     _, axes = plt.subplots(1, len(data), figsize=(20, 5), squeeze=False)
     axes = axes[0]
 
@@ -47,3 +49,39 @@ def plot_counts(
                 )
 
     plt.tight_layout()
+
+
+def feature_distributions(
+    data: pd.DataFrame,
+    features: List[str],
+    suptitle: Optional[str] = None,
+):
+    """Create one violin plot for each feature in `features`."""
+    n_features = len(features)
+    if n_features > 5:
+        feature_distributions(
+            data,
+            features[:n_features//2],
+            suptitle,
+        )
+        feature_distributions(
+            data,
+            features[n_features//2:],
+        )
+    else:
+        _, axes = plt.subplots(
+            1, n_features, figsize=(20, 5), squeeze=False
+        )
+        axes = axes[0]
+
+        plt.suptitle(suptitle, fontsize=16)
+
+        for idx, feature in enumerate(features):
+            axis = axes[idx]
+            axis.set_title(feature)
+
+            sns.violinplot(data=data[["Y", feature]], y=feature, x="Y", ax=axis)
+            axis.set_xlabel("CYP inhibition")
+            axis.set_ylabel(feature)
+
+        plt.tight_layout()
