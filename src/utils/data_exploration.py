@@ -9,7 +9,8 @@ import seaborn as sns
 def plot_counts(
     data: List,
     titles: List[str],
-    suptitle=None,
+    legend_title: str,
+    suptitle: Optional[str] = None,
     kind: Literal["bar", "pie"] = "bar",
     legend_labels: Optional[List] = None,
 ):
@@ -33,7 +34,7 @@ def plot_counts(
                 explode=(0, 0.1),
                 shadow=True,
             )
-            plt.legend(title="Y", labels=legend_labels, loc="lower right")
+            plt.legend(title=legend_title, labels=legend_labels, loc="lower right")
 
         elif kind == "bar":
             ncount = len(dat)
