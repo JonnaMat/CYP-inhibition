@@ -1,34 +1,35 @@
 """Data preparation and exploration."""
-
 import os
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import List, Literal, Dict, Optional
 from time import sleep
 from copy import deepcopy
 import pandas as pd
+import numpy as np
+
 from tdc.single_pred import ADME
 
 # pylint: disable=no-name-in-module
 from rdkit.Chem import Descriptors, MolFromSmiles, MolToSmiles
 from rdkit.ML.Descriptors.MoleculeDescriptors import MolecularDescriptorCalculator
+from rdkit.Chem.MolStandardize import rdMolStandardize
 
 from molvs.standardize import Standardizer
-from molvs.fragment import FragmentRemover
 
 
 def calculate_fingerprints(data: pd.DataFrame) -> pd.DataFrame:
     """Calculate a number of fingerprints and add to 'data'."""
 
+# pylint: disable=protected-access
+CALCULATOR = MolecularDescriptorCalculator([x[0] for x in Descriptors._descList])
 
 def calculate_descriptors(data: pd.DataFrame) -> pd.DataFrame:
     """Calculate all available descriptors for the given molecules and add to 'data'."""
 
-    # pylint: disable=protected-access
-    calculator = MolecularDescriptorCalculator([x[0] for x in Descriptors._descList])
-    header = calculator.GetDescriptorNames()
+    header = CALCULATOR.GetDescriptorNames()
 
     descriptors = [
-        calculator.CalcDescriptors(MolFromSmiles(smiles))
+        CALCULATOR.CalcDescriptors(MolFromSmiles(smiles))
         for smiles in data["Drug"].values
     ]
 
@@ -37,9 +38,17 @@ def calculate_descriptors(data: pd.DataFrame) -> pd.DataFrame:
         descriptor_data.insert(loc=0, column=column, value=list(data[column]))
     return descriptor_data
 
+def summarize_descriptors(descriptors: List[str]):
+    """Generate summaries of descriptors."""
+    desc_names = CALCULATOR.GetDescriptorNames()
+    summaries = CALCULATOR.GetDescriptorSummaries()
+
+    return {descriptor: summaries[desc_names.index(descriptor)] for descriptor in descriptors}
+
+
 
 def extract_null(data: pd.DataFrame):
-    """Returns all row/column pairs with NaN values."""
+    """Return all row/column pairs with NaN values."""
     null_columns_data = data[data.columns[data.isnull().any()]]
     return pd.merge(
         data[["Drug", "Drug_ID", "Y"]],
@@ -47,6 +56,25 @@ def extract_null(data: pd.DataFrame):
         left_index=True,
         right_index=True,
     )
+
+
+def dataset_split(
+    data: pd.DataFrame, frac: Optional[List[float]] = None
+) -> Dict[Literal["train", "val", "test"], pd.DataFrame]:
+    """Shuffle the dataset and create random split of the dataset."""
+
+    train_frac, val_frac, _ = [0.7, 0.1, 0.2] if frac is None else frac
+    n_samples = len(data)
+    # pylint: disable=unbalanced-tuple-unpacking
+    train, val, test = np.split(
+        data.sample(frac=1, random_state=42, ignore_index=False),
+        [int(train_frac * n_samples), int((train_frac + val_frac) * n_samples)],
+    )
+    return {
+        "train": train.reindex(),
+        "val": val,
+        "test": test,
+    }
 
 
 def load_tdc_dataset_split(
@@ -71,16 +99,22 @@ def load_tdc_dataset_full(
 
 
 MOL_STANDARDIZER = Standardizer()
-MOL_FRAGMENT_REMOVER = FragmentRemover()
+# pylint: disable=c-extension-no-member
+LARGEST_FRAGMENT_CHOOSER = rdMolStandardize.LargestFragmentChooser()
 
 
 def normalize_smiles(smiles: str) -> str:
     """Return normalized smiled string given `smiles`."""
+
     molecule = MolFromSmiles(smiles)
-    normalized_molecule = MOL_FRAGMENT_REMOVER.remove(
-        MOL_STANDARDIZER.standardize(molecule)
-    )
-    return MolToSmiles(normalized_molecule)
+    std_molecule = MOL_STANDARDIZER.standardize(molecule)
+    largest_mol = LARGEST_FRAGMENT_CHOOSER.choose(std_molecule)
+    if MolToSmiles(largest_mol) != smiles:
+        print()
+        print(smiles)
+        print(MolToSmiles(largest_mol))
+
+    return MolToSmiles(largest_mol)
 
 
 def remove_small_molecules(data: pd.DataFrame) -> pd.DataFrame:
@@ -94,6 +128,9 @@ def remove_small_molecules(data: pd.DataFrame) -> pd.DataFrame:
     for _ in range(num_remove_molecules):
         remove_molecules.append(int(input("Index of molecule to be removed: ")))
 
+    print("Removing the following molecules: ")
+    print(data.iloc[remove_molecules]["Drug"].to_string())
+
     return deepcopy(data).drop(remove_molecules)
 
 
@@ -106,11 +143,11 @@ def data_preprocessing(
 
     The following steps are performed:
 
-        1. fetch dataset from TDC
+        1. Fetch dataset from TDC
         2. Normalize smiles strings
         3. Calculate Descriptors
         4. Normalize Descriptor values
-        5. TODO Claculate Fingerprints
+        5. TODO Calculate Fingerprints
     """
     filename = f"data/{task.lower()}/raw_dataset_descriptors.csv"  # TODO
 
@@ -128,9 +165,6 @@ def data_preprocessing(
 
     print("Normalizing smiles strings...")
     tdc_data["Drug"] = tdc_data["Drug"].map(normalize_smiles)
-
-    print("Removing Small molecules...")
-    tdc_data = remove_small_molecules(tdc_data)
 
     print("Calculating descriptors...")
     descriptor_data = calculate_descriptors(tdc_data)
