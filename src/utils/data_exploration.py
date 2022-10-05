@@ -1,7 +1,8 @@
 """Module for exploring the data."""
 
 from collections import Counter
-from typing import List, Literal, Optional, Tuple
+from typing import List, Optional, Tuple
+from typing_extensions import Literal
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd

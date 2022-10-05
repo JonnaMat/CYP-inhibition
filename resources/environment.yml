@@ -1,0 +1,10 @@
+name: cypp450
+dependencies:
+  - numpy
+  - pandas
+  - python=3.7
+  - plotly
+  - typing
+  - molvs
+  - rdkit
+  - PyTDC

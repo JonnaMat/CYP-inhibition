@@ -1,7 +1,8 @@
 """Data preparation and exploration."""
 import os
 from pathlib import Path
-from typing import List, Literal, Dict, Optional
+from typing_extensions import Literal
+from typing import List, Dict, Optional
 from time import sleep
 from copy import deepcopy
 import pandas as pd
@@ -13,12 +14,35 @@ from tdc.single_pred import ADME
 from rdkit.Chem import Descriptors, MolFromSmiles, MolToSmiles
 from rdkit.ML.Descriptors.MoleculeDescriptors import MolecularDescriptorCalculator
 from rdkit.Chem.MolStandardize import rdMolStandardize
+from rdkit import Chem
+from rdkit.Chem import AllChem
+from rdkit import DataStructs
+from rdkit.Chem import MACCSkeys
+from rdkit.Chem.AtomPairs import Pairs
 
 from molvs.standardize import Standardizer
 
 
 def calculate_fingerprints(data: pd.DataFrame) -> pd.DataFrame:
     """Calculate a number of fingerprints and add to 'data'."""
+    print(data.shape)
+
+    #Morgan
+    morgan_fp = [morgan_fingerprint(smile) for smile in data['Drug']]
+    mfp_frame = pd.DataFrame(morgan_fp, index=None, columns=['Morgan_FP'] )
+    dataframe_first_update = data.join(mfp_frame)
+
+    #MACCS
+    maccs_fp = [maccs_fingerprint(smile) for smile in data['Drug']]
+    maccs_fr_frame = pd.DataFrame(maccs_fp, index=None, columns=['MACCS_FP'])
+    dataframe_second_update = dataframe_first_update.join(maccs_fr_frame)
+    
+    #ATOMPAIR
+    atompair_fp = [atompair_fingerprint(smile) for smile in data['Drug']]
+    atompair_fr_frame = pd.DataFrame(atompair_fp, index=None, columns=['ATOMPAIR_FP'])
+    dataframe_third_update = dataframe_second_update.join(atompair_fr_frame)
+    
+    return dataframe_third_update
 
 # pylint: disable=protected-access
 CALCULATOR = MolecularDescriptorCalculator([x[0] for x in Descriptors._descList])
@@ -168,15 +192,41 @@ def data_preprocessing(
 
     print("Calculating descriptors...")
     descriptor_data = calculate_descriptors(tdc_data)
-    # 4. TODO
+    
+    print("Calculating fingerprints...")
+    fingerprint_data = calculate_fingerprints(descriptor_data)
+    
     # 5. TODO
 
     # pylint: disable=logging-fstring-interpolation
     print(f"Save dataset to {filename}.")
-    descriptor_data.to_csv(filename)
+    fingerprint_data.to_csv(filename)
 
-    return descriptor_data
+    return fingerprint_data
 
+def morgan_fingerprint(smiles):
+    """Calculate Morgan fingerprint ECFP4 - 2048bits"""
+    mol = Chem.MolFromSmiles(smiles)
+    fp = AllChem.GetMorganFingerprintAsBitVect(mol,4, nBits=2048)
+
+    return DataStructs.cDataStructs.BitVectToText(fp)
+
+def maccs_fingerprint(smiles):
+    """Calculate MACCS fngerprint - 167bits"""
+    mol = Chem.MolFromSmiles(smiles)
+    fp = MACCSkeys.GenMACCSKeys(mol)
+
+    return DataStructs.cDataStructs.BitVectToText(fp)
+
+def atompair_fingerprint(smiles):
+    """Calculate AtomPair fingerprint 2048bits"""
+    mol = Chem.MolFromSmiles(smiles)
+    fp = list(Pairs.GetHashedAtomPairFingerprint(mol))
+    
+    atompair_list = [str(x) for x in fp]
+    atompair_str = ''.join(atompair_list)
+
+    return atompair_str
 
 # TODO
 def read_train_data(filename):
