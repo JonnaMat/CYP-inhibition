@@ -1,23 +1,20 @@
 """Data preparation and exploration."""
 import os
 from pathlib import Path
-from typing_extensions import Literal
-from typing import List, Dict, Optional
 from time import sleep
 from copy import deepcopy
+from typing import List, Dict, Optional, Literal
 import pandas as pd
 import numpy as np
 
 from tdc.single_pred import ADME
 
 # pylint: disable=no-name-in-module
-from rdkit.Chem import Descriptors, MolFromSmiles, MolToSmiles
+from rdkit.Chem import Descriptors, MolFromSmiles, MolToSmiles, MACCSkeys
 from rdkit.ML.Descriptors.MoleculeDescriptors import MolecularDescriptorCalculator
 from rdkit.Chem.MolStandardize import rdMolStandardize
-from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit import DataStructs
-from rdkit.Chem import MACCSkeys
 from rdkit.Chem.AtomPairs import Pairs
 
 from molvs.standardize import Standardizer
@@ -25,27 +22,28 @@ from molvs.standardize import Standardizer
 
 def calculate_fingerprints(data: pd.DataFrame) -> pd.DataFrame:
     """Calculate a number of fingerprints and add to 'data'."""
-    print(data.shape)
 
-    #Morgan
-    morgan_fp = [morgan_fingerprint(smile) for smile in data['Drug']]
-    mfp_frame = pd.DataFrame(morgan_fp, index=None, columns=['Morgan_FP'] )
+    # Morgan
+    morgan_fp = [morgan_fingerprint(smile) for smile in data["Drug"]]
+    mfp_frame = pd.DataFrame(morgan_fp, index=None, columns=["Morgan_FP"])
     dataframe_first_update = data.join(mfp_frame)
 
-    #MACCS
-    maccs_fp = [maccs_fingerprint(smile) for smile in data['Drug']]
-    maccs_fr_frame = pd.DataFrame(maccs_fp, index=None, columns=['MACCS_FP'])
+    # MACCS
+    maccs_fp = [maccs_fingerprint(smile) for smile in data["Drug"]]
+    maccs_fr_frame = pd.DataFrame(maccs_fp, index=None, columns=["MACCS_FP"])
     dataframe_second_update = dataframe_first_update.join(maccs_fr_frame)
-    
-    #ATOMPAIR
-    atompair_fp = [atompair_fingerprint(smile) for smile in data['Drug']]
-    atompair_fr_frame = pd.DataFrame(atompair_fp, index=None, columns=['ATOMPAIR_FP'])
+
+    # ATOMPAIR
+    atompair_fp = [atompair_fingerprint(smile) for smile in data["Drug"]]
+    atompair_fr_frame = pd.DataFrame(atompair_fp, index=None, columns=["ATOMPAIR_FP"])
     dataframe_third_update = dataframe_second_update.join(atompair_fr_frame)
-    
+
     return dataframe_third_update
+
 
 # pylint: disable=protected-access
 CALCULATOR = MolecularDescriptorCalculator([x[0] for x in Descriptors._descList])
+
 
 def calculate_descriptors(data: pd.DataFrame) -> pd.DataFrame:
     """Calculate all available descriptors for the given molecules and add to 'data'."""
@@ -62,13 +60,16 @@ def calculate_descriptors(data: pd.DataFrame) -> pd.DataFrame:
         descriptor_data.insert(loc=0, column=column, value=list(data[column]))
     return descriptor_data
 
+
 def summarize_descriptors(descriptors: List[str]):
     """Generate summaries of descriptors."""
     desc_names = CALCULATOR.GetDescriptorNames()
     summaries = CALCULATOR.GetDescriptorSummaries()
 
-    return {descriptor: summaries[desc_names.index(descriptor)] for descriptor in descriptors}
-
+    return {
+        descriptor: summaries[desc_names.index(descriptor)]
+        for descriptor in descriptors
+    }
 
 
 def extract_null(data: pd.DataFrame):
@@ -133,10 +134,6 @@ def normalize_smiles(smiles: str) -> str:
     molecule = MolFromSmiles(smiles)
     std_molecule = MOL_STANDARDIZER.standardize(molecule)
     largest_mol = LARGEST_FRAGMENT_CHOOSER.choose(std_molecule)
-    if MolToSmiles(largest_mol) != smiles:
-        print()
-        print(smiles)
-        print(MolToSmiles(largest_mol))
 
     return MolToSmiles(largest_mol)
 
@@ -170,10 +167,9 @@ def data_preprocessing(
         1. Fetch dataset from TDC
         2. Normalize smiles strings
         3. Calculate Descriptors
-        4. Normalize Descriptor values
-        5. TODO Calculate Fingerprints
+        4. Calculate Fingerprints
     """
-    filename = f"data/{task.lower()}/raw_dataset_descriptors.csv"  # TODO
+    filename = f"data/{task.lower()}/raw_dataset.csv" 
 
     # create directories if necessary
     Path(f"data/{task.lower()}").mkdir(parents=True, exist_ok=True)
@@ -192,11 +188,9 @@ def data_preprocessing(
 
     print("Calculating descriptors...")
     descriptor_data = calculate_descriptors(tdc_data)
-    
+
     print("Calculating fingerprints...")
     fingerprint_data = calculate_fingerprints(descriptor_data)
-    
-    # 5. TODO
 
     # pylint: disable=logging-fstring-interpolation
     print(f"Save dataset to {filename}.")
@@ -204,48 +198,29 @@ def data_preprocessing(
 
     return fingerprint_data
 
+
 def morgan_fingerprint(smiles):
     """Calculate Morgan fingerprint ECFP4 - 2048bits"""
-    mol = Chem.MolFromSmiles(smiles)
-    fp = AllChem.GetMorganFingerprintAsBitVect(mol,4, nBits=2048)
+    mol = MolFromSmiles(smiles)
+    fp = AllChem.GetMorganFingerprintAsBitVect(mol, 4, nBits=2048)
 
     return DataStructs.cDataStructs.BitVectToText(fp)
 
+
 def maccs_fingerprint(smiles):
     """Calculate MACCS fngerprint - 167bits"""
-    mol = Chem.MolFromSmiles(smiles)
+    mol = MolFromSmiles(smiles)
     fp = MACCSkeys.GenMACCSKeys(mol)
 
     return DataStructs.cDataStructs.BitVectToText(fp)
 
+
 def atompair_fingerprint(smiles):
     """Calculate AtomPair fingerprint 2048bits"""
-    mol = Chem.MolFromSmiles(smiles)
+    mol = MolFromSmiles(smiles)
     fp = list(Pairs.GetHashedAtomPairFingerprint(mol))
-    
+
     atompair_list = [str(x) for x in fp]
-    atompair_str = ''.join(atompair_list)
+    atompair_str = "".join(atompair_list)
 
     return atompair_str
-
-# TODO
-def read_train_data(filename):
-    x = []
-    y = []
-    max_len = 0
-    with open(filename) as infile:
-        infile.readline()
-        for line in infile:
-            line = line.strip("\n\r ")
-            line = line.split(",")
-            y.append(line[len(line) - 1])
-            fingerprint_bit_vector = list(map(int, line[12].strip()))
-            line = line[1:12] + fingerprint_bit_vector
-            max_len = max(max_len, len(line))
-            x.append(line)
-    print("max_len: {}".format(max_len))
-    x = np.array(x)
-    x = x.astype(np.float)
-    y = np.array(y)
-    y = y.astype(np.int)
-    return x, y, max_len
