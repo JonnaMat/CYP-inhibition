@@ -56,36 +56,39 @@ def plot_counts(
 def feature_distributions(
     data: pd.DataFrame,
     features: List[str],
-    x_label: str,
+    task: str,
     suptitle: Optional[str] = None,
+    kind: Literal["hist", "violin"] = "violin",
 ):
-    """Create one violin plot for each feature in `features`."""
+    """Create a plot of type `kind` for each feature in `features`."""
     n_features = len(features)
     if n_features > 5:
         feature_distributions(
-            data,
-            features[: n_features // 2],
-            x_label,
-            suptitle,
+            data, features[: n_features // 2], task, suptitle, kind=kind
         )
-        feature_distributions(
-            data,
-            features[n_features // 2 :],
-            x_label,
-        )
+        feature_distributions(data, features[n_features // 2 :], task, kind=kind)
     else:
         _, axes = plt.subplots(1, n_features, figsize=(20, 5), squeeze=False)
         axes = axes[0]
-
         plt.suptitle(suptitle, fontsize=16)
 
         for idx, feature in enumerate(features):
             axis = axes[idx]
             axis.set_title(feature)
-
-            sns.violinplot(data=data[["Y", feature]], y=feature, x="Y", ax=axis)
-            axis.set_xlabel(x_label)
-            axis.set_ylabel(feature)
+            if kind == "violin":
+                sns.violinplot(data=data[["Y", feature]], y=feature, x="Y", ax=axis)
+                axis.set_xlabel(task)
+                axis.set_ylabel(feature)
+            elif kind == "hist":
+                sns.histplot(
+                    data=data.rename(
+                        {"Y": task}, axis=1
+                    ),
+                    x=feature,
+                    hue= task,
+                    ax=axis,
+                    bins=15,
+                )
 
         plt.tight_layout()
 
