@@ -8,3 +8,4 @@ dependencies:
   - molvs
   - rdkit
   - PyTDC
+  - feature-engine
