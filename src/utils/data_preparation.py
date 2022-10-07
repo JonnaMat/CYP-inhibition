@@ -224,3 +224,7 @@ def atompair_fingerprint(smiles):
     atompair_str = "".join(atompair_list)
 
     return atompair_str
+
+def convert_strings_to_int_array(string_array: List[str]):
+    """Convert an array of strings (numbers) into an array of array of ints."""
+    return np.array([list(string_array[idx]) for idx in range(len(string_array))]).astype(int)
