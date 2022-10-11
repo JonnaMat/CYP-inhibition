@@ -202,7 +202,7 @@ def data_preprocessing(
 def morgan_fingerprint(smiles):
     """Calculate Morgan fingerprint ECFP4 - 2048bits"""
     mol = MolFromSmiles(smiles)
-    fp = AllChem.GetMorganFingerprintAsBitVect(mol, 4, nBits=2048)
+    fp = AllChem.GetMorganFingerprintAsBitVect(mol, 2, nBits=2048)
 
     return DataStructs.cDataStructs.BitVectToText(fp)
 
