@@ -83,12 +83,59 @@ def extract_null(data: pd.DataFrame):
     )
 
 
+def select_druglike_molecules(data: pd.DataFrame) -> pd.DataFrame:
+    """
+    Apply Lipinski's "Rule of 5" to select drug-like molecules.
+
+    Lipinski's "Rule of 5"
+    Moleculer Weight <= 500
+    -5 <= LogP <= 5
+    H-Bond Donor Count <= 5
+    H-Bond Acceptor Count <= 10
+    3 or more must apply / No more than one violation
+
+    See: https://en.wikipedia.org/wiki/Lipinski%27s_rule_of_five
+    """
+
+    print("Numbe of molecules before druglikeliness selection:", len(data))
+
+    druglike_data = data[
+        (
+            data["MolWt"].between(0, 500)
+            & data["MolLogP"].between(-5, 5)
+            & data["NumHDonors"].between(0, 5)
+        )
+        | (
+            data["MolWt"].between(0, 500)
+            & data["MolLogP"].between(-5, 5)
+            & data["NumHAcceptors"].between(0, 10)
+        )
+        | (
+            data["MolWt"].between(0, 500)
+            & data["NumHAcceptors"].between(0, 10)
+            & data["NumHDonors"].between(0, 5)
+        )
+        | (
+            data["NumHAcceptors"].between(0, 10)
+            & data["MolLogP"].between(-5, 5)
+            & data["NumHDonors"].between(0, 5)
+        )
+    ]
+
+    print("Numbe of druglike molecules:", len(druglike_data))
+
+    return druglike_data
+
+
 def dataset_split(
     data: pd.DataFrame, frac: Optional[List[float]] = None
 ) -> Dict[Literal["train", "val", "test"], pd.DataFrame]:
     """Shuffle the dataset and create random split of the dataset."""
 
-    train_frac, val_frac, _ = [0.7, 0.1, 0.2] if frac is None else frac
+    train_frac, val_frac, test_frac = [0.7, 0.1, 0.2] if frac is None else frac
+    print(
+        f"Splitting the data into {train_frac*100:.2f}% training, {val_frac*100:.2f}% training, and {test_frac*100:.2f}% training."
+    )
     n_samples = len(data)
     # pylint: disable=unbalanced-tuple-unpacking
     train, val, test = np.split(
@@ -169,7 +216,7 @@ def data_preprocessing(
         3. Calculate Descriptors
         4. Calculate Fingerprints
     """
-    filename = f"data/{task.lower()}/raw_dataset.csv" 
+    filename = f"data/{task.lower()}/raw_dataset.csv"
 
     # create directories if necessary
     Path(f"data/{task.lower()}").mkdir(parents=True, exist_ok=True)
@@ -225,6 +272,9 @@ def atompair_fingerprint(smiles):
 
     return atompair_str
 
+
 def convert_strings_to_int_array(string_array: List[str]):
     """Convert an array of strings (numbers) into an array of array of ints."""
-    return np.array([list(string_array[idx]) for idx in range(len(string_array))]).astype(int)
+    return np.array(
+        [list(string_array[idx]) for idx in range(len(string_array))]
+    ).astype(int)
