@@ -1,9 +1,10 @@
 """Data preparation and exploration."""
+from dataclasses import dataclass
 import os
 from pathlib import Path
 from time import sleep
 from copy import deepcopy
-from typing import List, Dict, Optional, Literal
+from typing import List, Optional, Literal
 import pandas as pd
 import numpy as np
 
@@ -18,6 +19,30 @@ from rdkit import DataStructs
 from rdkit.Chem.AtomPairs import Pairs
 
 from molvs.standardize import Standardizer
+
+
+@dataclass
+class FeatureGroup:
+    """Dataclass for feature groups."""
+
+    continuous: List[str]
+    discrete: List[str]
+    fingerprint: List[str]
+
+    def __getitem__(self, item):
+        return getattr(self, item)
+
+
+@dataclass
+class Datasets:
+    """Dataclass for keeping track of train-val-test split of the data."""
+
+    train: pd.DataFrame
+    val: pd.DataFrame
+    test: pd.DataFrame
+
+    def __getitem__(self, item):
+        return getattr(self, item)
 
 
 def calculate_fingerprints(data: pd.DataFrame) -> pd.DataFrame:
@@ -127,14 +152,12 @@ def select_druglike_molecules(data: pd.DataFrame) -> pd.DataFrame:
     return druglike_data
 
 
-def dataset_split(
-    data: pd.DataFrame, frac: Optional[List[float]] = None
-) -> Dict[Literal["train", "val", "test"], pd.DataFrame]:
+def dataset_split(data: pd.DataFrame, frac: Optional[List[float]] = None) -> Datasets:
     """Shuffle the dataset and create random split of the dataset."""
 
     train_frac, val_frac, test_frac = [0.7, 0.1, 0.2] if frac is None else frac
     print(
-        f"Splitting the data into {train_frac*100:.2f}% training, {val_frac*100:.2f}% training, and {test_frac*100:.2f}% training."
+        f"Splitting the data into {train_frac*100:.2f}% training, {val_frac*100:.2f}% training, and {test_frac*100:.2f}% testing."
     )
     n_samples = len(data)
     # pylint: disable=unbalanced-tuple-unpacking
@@ -142,11 +165,7 @@ def dataset_split(
         data.sample(frac=1, random_state=42, ignore_index=False),
         [int(train_frac * n_samples), int((train_frac + val_frac) * n_samples)],
     )
-    return {
-        "train": train.reindex(),
-        "val": val,
-        "test": test,
-    }
+    return Datasets(train=train.reindex(), val=val, test=test)
 
 
 def load_tdc_dataset_split(
@@ -278,3 +297,27 @@ def convert_strings_to_int_array(string_array: List[str]):
     return np.array(
         [list(string_array[idx]) for idx in range(len(string_array))]
     ).astype(int)
+
+
+def get_feature_groups(datasets, fingerprint_df):
+    """Return instance of `FeatureGroup`."""
+
+    unique_dtypes = set(datasets["train"].dtypes)
+    print(f"Unique Datatypes: {unique_dtypes}")
+
+    continuous_descriptors = list(
+        datasets["train"].select_dtypes(include="float64").columns
+    )
+    discrete_descriptors = list(
+        datasets["train"].select_dtypes(include="int64").columns
+    )
+    discrete_descriptors.remove("Y")
+    fingerprint_features = list(fingerprint_df.columns)
+    for fingerprint_feature in fingerprint_features:
+        discrete_descriptors.remove(fingerprint_feature)
+
+    return FeatureGroup(
+        continuous=continuous_descriptors,
+        discrete=discrete_descriptors,
+        fingerprint=fingerprint_features,
+    )
