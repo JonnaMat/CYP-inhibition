@@ -54,7 +54,7 @@ class DataPreprocessing:
         #     score_func = mutual_info_classif
 
         self.continuous_preprocessing = Pipeline(
-            steps=[  # DropCorrelatedFeatures needs to be first since it takes a DataFrame as an input
+            steps=[  # DropCorrelatedFeatures needs to be first since it takes a DataFrame as input
                 (
                     "drop_corr_features",
                     DropCorrelatedFeatures(
