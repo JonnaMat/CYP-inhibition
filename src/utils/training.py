@@ -4,6 +4,7 @@ from typing import Literal, Dict, Optional, Union, List
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.pylab as pylab
 
 from sklearn.pipeline import Pipeline
 from sklearn.feature_selection import VarianceThreshold
@@ -13,19 +14,16 @@ from sklearn.metrics import accuracy_score, ConfusionMatrixDisplay
 from feature_engine.selection import DropCorrelatedFeatures
 
 from skopt import forest_minimize
-from skopt.space import Real, Integer
-from skopt.utils import dump
-from skopt.callbacks import CheckpointSaver
+from skopt.space import Real, Integer, Categorical
 
-# plot setup
-import matplotlib.pylab as pylab
-PYLAB_PARAMS = {'legend.fontsize': 14,
-        'figure.figsize': (9*1.6, 9),
-        'axes.labelsize': 16,
-        'axes.titlesize':16,
-        'xtick.labelsize':12,
-        'ytick.labelsize':12}
-
+PYLAB_PARAMS = {
+    "legend.fontsize": 14,
+    "figure.figsize": (9 * 1.6, 9),
+    "axes.labelsize": 16,
+    "axes.titlesize": 16,
+    "xtick.labelsize": 12,
+    "ytick.labelsize": 12,
+}
 
 
 class DataPreprocessing:
@@ -142,13 +140,12 @@ class DataPreprocessing:
 
 def plot_confusion_matrix(y_val, y_pred, model_name):
     """Plot confusion matrix and output different metrics."""
-    plt.style.use('default')
+    plt.style.use("default")
     pylab.rcParams.update(PYLAB_PARAMS)
     print(f"Accuracy: {accuracy_score(y_val, y_pred)*100:.2f}%")
     ConfusionMatrixDisplay.from_predictions(y_val, y_pred, cmap="Blues")
     plt.title(f"{model_name}\nConfusion Matrix")
     plt.show()
-
 
 
 def plot_parameter_metric(
@@ -159,7 +156,7 @@ def plot_parameter_metric(
     metric_values: List[float],
 ):
     """Plot metric vs parameter."""
-    plt.style.use('seaborn-darkgrid')
+    plt.style.use("seaborn-darkgrid")
     pylab.rcParams.update(PYLAB_PARAMS)
     plt.plot(param_values, metric_values)
     plt.title(f"{model_name}\n{metric} vs {parameter}")
@@ -179,10 +176,10 @@ class BayesianOptimization:
         self,
         model,
         file_name: str,
-        model_params: List[Union[Real, Integer]],
+        model_params: List[Union[Real, Integer, Categorical]],
         datasets,
         feature_groups,
-        checkpointed_results=None,
+        preprocessing_params: Optional[List[Union[Real, Integer, Categorical]]] = None,
     ):
         """Constructor for BayesianOptimization of the model `model`.
 
@@ -197,33 +194,43 @@ class BayesianOptimization:
         self.y_val = datasets["val"]["Y"]
         self.model = model
         self.file_name = file_name
-        self.model_params = model_params
-        self.checkpointed_results = (
-            checkpointed_results if checkpointed_results is not None else {}
-        )
+        self.file_loc = f"optimization/{self.file_name}"
+        self.file = open(self.file_loc, "w", encoding="utf-8")
+        self.run_counter = 0
 
         self.feature_groups = feature_groups
-        self.file_loc = f"optimization/{self.file_name}"
-        self.checkpoint_callback = CheckpointSaver(self.file_loc)
 
+        self.model_params = model_params
+        self.preprocessing_params = (
+            preprocessing_params
+            if preprocessing_params is not None
+            else [
+                Real(name="var_threshold_continuous", low=0.0, high=0.05),
+                Real(name="var_threshold_discrete", low=0.0, high=0.05),
+                Real(name="var_threshold_fingerprint", low=0.0, high=0.05),
+                Real(name="corr_threshold", low=0.7, high=0.95),
+            ]
+        )
         self.dimensions = [
             *model_params,
-            Real(name="var_threshold_continuous", low=0.0, high=0.05),
-            Real(name="var_threshold_discrete", low=0.0, high=0.05),
-            Real(name="var_threshold_fingerprint", low=0.0, high=0.05),
-            Real(name="corr_threshold", low=0.7, high=0.95),
+            *self.preprocessing_params
             # Integer(name="select_percentile_discrete", low=5, high=50),
             # Integer(name="select_percentile_fingerprint", low=5, high=50),
             # Categorical(name="score_func", categories=["chi2", "mutual_info_classif"]),
         ]
 
-    def optimize(self, n_calls=100, n_initial_points=10, acq_func="EI"):
+    def optimize(self, n_calls=50, n_initial_points=10, acq_func="EI"):
         """
         Run the optimization.
 
         After each evaluation of the objective function a checkoint will be stored.
         This allows training to be stopped and continued any time.
         """
+
+        for dim in self.dimensions:
+            self.file.write(f",{dim.name}")
+        self.file.write(",val_accuracy\n")
+
         result = forest_minimize(
             self.objective,
             dimensions=self.dimensions,
@@ -232,18 +239,16 @@ class BayesianOptimization:
             acq_func=acq_func,
             verbose=True,
             n_jobs=-1,
-            callback=[self.checkpoint_callback],
-            x0=self.checkpointed_results.get("x_iters", None),
-            y0=self.checkpointed_results.get("func_vals", None),
         )
 
         print("\nSave results at", self.file_loc)
-        dump(result, self.file_loc)
         print("""Best parameters:""")
         for parameter, value in zip(self.dimensions, result.x):
             print(f"- {parameter.name} = {value}")
 
-        return result
+        self.file.close()
+
+        return pd.read_csv(self.file_loc).drop("Unnamed: 0", axis=1)
 
     def train_objective(self, params: list):
         """Train `self.model` + Preprocess data given `params`.
@@ -298,8 +303,9 @@ class BayesianOptimization:
         """Evaluate `self.model`."""
         x_val_preprocessed = preprocessing_pipeline.transform(self.x_val)
         y_pred = model.predict(x_val_preprocessed)
+        acc_score = accuracy_score(self.y_val, y_pred)
 
-        return -1.0 * accuracy_score(self.y_val, y_pred)
+        return -1.0 * acc_score
 
     def optimization_func(self, params: list):
         """Fit and evaluate `self.model` and the preprocessing pipeline."""
@@ -308,12 +314,22 @@ class BayesianOptimization:
 
     def objective(self, params: list) -> float:
         """Fit and evaluate `self.model` and the preprocessing pipeline."""
-        preprocessing_pipeline, model = self.train_objective(params)
-        return self.evaluate_model(preprocessing_pipeline, model)
+        self.file.write(str(self.run_counter))
+        self.run_counter += 1
+        for param in params:
+            self.file.write(f",{param}")
 
-    def best_confusion_matrix(self, results):
+        preprocessing_pipeline, model = self.train_objective(params)
+        score = self.evaluate_model(preprocessing_pipeline, model)
+        self.file.write(f",{score}\n")
+        return score
+
+    def best_confusion_matrix(self, results: pd.DataFrame):
         """Plot confusion matrix and output different metrics."""
-        preprocessing_pipeline, model = self.train_objective(results.x)
+        best_params = list(
+            results.sort_values("val_accuracy").iloc[0].drop("val_accuracy")
+        )
+        preprocessing_pipeline, model = self.train_objective(best_params)
         x_val_preprocessed = preprocessing_pipeline.transform(self.x_val)
         y_pred = model.predict(x_val_preprocessed)
 
