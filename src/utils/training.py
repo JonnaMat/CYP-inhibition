@@ -1,27 +1,31 @@
 """Data preprocessing Pipelines and model training."""
 
 from typing import Literal, Dict, Optional, Union, List
-import pickle
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
 from sklearn.pipeline import Pipeline
-from sklearn.feature_selection import (
-    VarianceThreshold,
-    SelectPercentile,
-    mutual_info_classif,
-    chi2,
-)
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from sklearn.decomposition import PCA
+from sklearn.feature_selection import VarianceThreshold
+from sklearn.preprocessing import MinMaxScaler
+
 from sklearn.metrics import accuracy_score, ConfusionMatrixDisplay
 from feature_engine.selection import DropCorrelatedFeatures
 
 from skopt import forest_minimize
-from skopt.space import Real, Integer, Categorical
+from skopt.space import Real, Integer
 from skopt.utils import dump
 from skopt.callbacks import CheckpointSaver
+
+# plot setup
+import matplotlib.pylab as pylab
+PYLAB_PARAMS = {'legend.fontsize': 14,
+        'figure.figsize': (9*1.6, 9),
+        'axes.labelsize': 16,
+        'axes.titlesize':16,
+        'xtick.labelsize':12,
+        'ytick.labelsize':12}
+
 
 
 class DataPreprocessing:
@@ -34,22 +38,22 @@ class DataPreprocessing:
             Dict[Literal["continuous", "discrete", "fingerprint"], float]
         ] = None,
         corr_threshold: float = 0.8,
-        select_percentile: Optional[
-            Dict[Literal["discrete", "fingerprint"], int]
-        ] = None,
-        score_func: Optional[Literal["chi2", "mutual_info_classif"]] = None,
+        # select_percentile: Optional[
+        #     Dict[Literal["discrete", "fingerprint"], int]
+        # ] = None,
+        # score_func: Optional[Literal["chi2", "mutual_info_classif"]] = None,
     ):
         """Initialize preprocessing Pipelines."""
         self.feature_groups = feature_groups
 
         var_threshold = var_threshold if var_threshold is not None else {}
-        select_percentile = select_percentile if select_percentile is not None else {}
-        if score_func is None:
-            score_func = mutual_info_classif
-        elif score_func == "chi2":
-            score_func = chi2
-        else:
-            score_func = mutual_info_classif
+        # select_percentile = select_percentile if select_percentile is not None else {}
+        # if score_func is None:
+        #     score_func = mutual_info_classif
+        # elif score_func == "chi2":
+        #     score_func = chi2
+        # else:
+        #     score_func = mutual_info_classif
 
         self.continuous_preprocessing = Pipeline(
             steps=[  # DropCorrelatedFeatures needs to be first since it takes a DataFrame as an input
@@ -66,9 +70,9 @@ class DataPreprocessing:
                 ),
                 (
                     "normalize",
-                    StandardScaler(),
-                ),  # pca assumes mean=0 and variance=1
-                ("pca", PCA(n_components="mle")),
+                    MinMaxScaler(),
+                ),  # StandardScaler() if pca since pca assumes mean=0 and variance=1
+                # ("pca", PCA(n_components="mle")),
             ]
         )
 
@@ -79,13 +83,13 @@ class DataPreprocessing:
                     VarianceThreshold(threshold=var_threshold.get("discrete", 0.0)),
                 ),
                 ("min_max_normalization", MinMaxScaler()),
-                (
-                    "select_percentile",
-                    SelectPercentile(
-                        score_func=score_func,
-                        percentile=select_percentile.get("discrete", 10),
-                    ),
-                ),
+                # (
+                #     "select_percentile",
+                #     SelectPercentile(
+                #         score_func=score_func,
+                #         percentile=select_percentile.get("discrete", 10),
+                #     ),
+                # ),
             ]
         )
 
@@ -95,13 +99,13 @@ class DataPreprocessing:
                     "drop_zero_var",
                     VarianceThreshold(threshold=var_threshold.get("fingerprint", 0.0)),
                 ),
-                (
-                    "select_percentile",
-                    SelectPercentile(
-                        score_func=score_func,
-                        percentile=select_percentile.get("fingerprint", 10),
-                    ),
-                ),
+                # (
+                #     "select_percentile",
+                #     SelectPercentile(
+                #         score_func=score_func,
+                #         percentile=select_percentile.get("fingerprint", 10),
+                #     ),
+                # ),
             ]
         )
 
@@ -138,9 +142,30 @@ class DataPreprocessing:
 
 def plot_confusion_matrix(y_val, y_pred, model_name):
     """Plot confusion matrix and output different metrics."""
+    plt.style.use('default')
+    pylab.rcParams.update(PYLAB_PARAMS)
     print(f"Accuracy: {accuracy_score(y_val, y_pred)*100:.2f}%")
     ConfusionMatrixDisplay.from_predictions(y_val, y_pred, cmap="Blues")
     plt.title(f"{model_name}\nConfusion Matrix")
+    plt.show()
+
+
+
+def plot_parameter_metric(
+    model_name: str,
+    metric: str,
+    parameter: str,
+    param_values: List[float],
+    metric_values: List[float],
+):
+    """Plot metric vs parameter."""
+    plt.style.use('seaborn-darkgrid')
+    pylab.rcParams.update(PYLAB_PARAMS)
+    plt.plot(param_values, metric_values)
+    plt.title(f"{model_name}\n{metric} vs {parameter}")
+    plt.xlabel(parameter)
+    plt.xticks(ticks=param_values[::5])
+    plt.ylabel(metric)
     plt.show()
 
 
@@ -157,7 +182,7 @@ class BayesianOptimization:
         model_params: List[Union[Real, Integer]],
         datasets,
         feature_groups,
-        checkpointed_results = None
+        checkpointed_results=None,
     ):
         """Constructor for BayesianOptimization of the model `model`.
 
@@ -173,10 +198,12 @@ class BayesianOptimization:
         self.model = model
         self.file_name = file_name
         self.model_params = model_params
-        self.checkpointed_results = checkpointed_results if checkpointed_results is not None else {}
+        self.checkpointed_results = (
+            checkpointed_results if checkpointed_results is not None else {}
+        )
 
         self.feature_groups = feature_groups
-        self.file_loc = f"bayesian_optimization/{self.file_name}"
+        self.file_loc = f"optimization/{self.file_name}"
         self.checkpoint_callback = CheckpointSaver(self.file_loc)
 
         self.dimensions = [
@@ -185,16 +212,16 @@ class BayesianOptimization:
             Real(name="var_threshold_discrete", low=0.0, high=0.05),
             Real(name="var_threshold_fingerprint", low=0.0, high=0.05),
             Real(name="corr_threshold", low=0.7, high=0.95),
-            Integer(name="select_percentile_discrete", low=5, high=50),
-            Integer(name="select_percentile_fingerprint", low=5, high=50),
-            Categorical(name="score_func", categories=["chi2", "mutual_info_classif"]),
+            # Integer(name="select_percentile_discrete", low=5, high=50),
+            # Integer(name="select_percentile_fingerprint", low=5, high=50),
+            # Categorical(name="score_func", categories=["chi2", "mutual_info_classif"]),
         ]
 
     def optimize(self, n_calls=100, n_initial_points=10, acq_func="EI"):
         """
         Run the optimization.
 
-        After each evaluation of the objective function a checkoint will be stored. 
+        After each evaluation of the objective function a checkoint will be stored.
         This allows training to be stopped and continued any time.
         """
         result = forest_minimize(
@@ -205,10 +232,9 @@ class BayesianOptimization:
             acq_func=acq_func,
             verbose=True,
             n_jobs=-1,
-            base_estimator="RF",
             callback=[self.checkpoint_callback],
             x0=self.checkpointed_results.get("x_iters", None),
-            y0=self.checkpointed_results.get("func_vals", None)
+            y0=self.checkpointed_results.get("func_vals", None),
         )
 
         print("\nSave results at", self.file_loc)
@@ -230,9 +256,9 @@ class BayesianOptimization:
             var_threshold_discrete,
             var_threshold_fingerprint,
             corr_threshold,
-            select_percentile_discrete,
-            select_percentile_fingerprint,
-            score_func
+            # select_percentile_discrete,
+            # select_percentile_fingerprint,
+            # score_func
         ) = params
 
         # Preprocessing
@@ -244,11 +270,11 @@ class BayesianOptimization:
                 "fingerprint": var_threshold_fingerprint,
             },
             corr_threshold=corr_threshold,
-            select_percentile={
-                "discrete": select_percentile_discrete,
-                "fingerprint": select_percentile_fingerprint,
-            },
-            score_func=score_func,
+            # select_percentile={
+            #     "discrete": select_percentile_discrete,
+            #     "fingerprint": select_percentile_fingerprint,
+            # },
+            # score_func=score_func,
         )
         preprocessing_pipeline.fit(self.x_train, self.y_train)
         x_train_preprocessed = preprocessing_pipeline.transform(self.x_train)
