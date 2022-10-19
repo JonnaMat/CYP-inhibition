@@ -195,7 +195,7 @@ class BayesianOptimization:
         self.model = model
         self.file_name = file_name
         self.file_loc = f"optimization/{self.file_name}"
-        self.file = open(self.file_loc, "w", encoding="utf-8")
+        self.file = open(self.file_loc, "a", encoding="utf-8")
         self.run_counter = 0
 
         self.feature_groups = feature_groups
