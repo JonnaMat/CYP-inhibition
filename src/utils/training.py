@@ -3,15 +3,16 @@
 from typing import Literal, Dict, Optional, Union, List
 import numpy as np
 import pandas as pd
+from feature_engine.selection import DropCorrelatedFeatures
+
 import matplotlib.pyplot as plt
 import matplotlib.pylab as pylab
 
 from sklearn.pipeline import Pipeline
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.preprocessing import MinMaxScaler
-
+from sklearn.dummy import DummyClassifier
 from sklearn.metrics import accuracy_score, ConfusionMatrixDisplay
-from feature_engine.selection import DropCorrelatedFeatures
 
 from skopt import forest_minimize
 from skopt.space import Real, Integer, Categorical
@@ -35,7 +36,7 @@ class DataPreprocessing:
         var_threshold: Optional[
             Dict[Literal["continuous", "discrete", "fingerprint"], float]
         ] = None,
-        corr_threshold: float = 0.8,
+        corr_threshold: float = 0.95,
         # select_percentile: Optional[
         #     Dict[Literal["discrete", "fingerprint"], int]
         # ] = None,
@@ -334,3 +335,12 @@ class BayesianOptimization:
         y_pred = model.predict(x_val_preprocessed)
 
         plot_confusion_matrix(self.y_val, y_pred, f"Optimized {self.file_name}")
+
+def get_baseline(datasets):
+    """Plot the Confusion Matri of the Baseline."""
+    baseline = DummyClassifier()
+    baseline.fit(datasets["train"].drop("Y", axis=1), datasets["train"]["Y"])
+    y_pred_baseline = baseline.predict(datasets["val"].drop("Y", axis=1))
+
+    plot_confusion_matrix(datasets["val"]["Y"], y_pred_baseline, "Baseline - DummyClassifier")
+    plt.show()
