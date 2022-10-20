@@ -1,9 +1,10 @@
 """Data preparation and exploration."""
+from dataclasses import dataclass
 import os
 from pathlib import Path
 from time import sleep
 from copy import deepcopy
-from typing import List, Dict, Optional, Literal
+from typing import List, Optional, Literal
 import pandas as pd
 import numpy as np
 
@@ -18,6 +19,30 @@ from rdkit import DataStructs
 from rdkit.Chem.AtomPairs import Pairs
 
 from molvs.standardize import Standardizer
+
+
+@dataclass
+class FeatureGroup:
+    """Dataclass for feature groups."""
+
+    continuous: List[str]
+    discrete: List[str]
+    fingerprint: List[str]
+
+    def __getitem__(self, item):
+        return getattr(self, item)
+
+
+@dataclass
+class Datasets:
+    """Dataclass for keeping track of train-val-test split of the data."""
+
+    train: pd.DataFrame
+    val: pd.DataFrame
+    test: pd.DataFrame
+
+    def __getitem__(self, item):
+        return getattr(self, item)
 
 
 def calculate_fingerprints(data: pd.DataFrame) -> pd.DataFrame:
@@ -83,23 +108,64 @@ def extract_null(data: pd.DataFrame):
     )
 
 
-def dataset_split(
-    data: pd.DataFrame, frac: Optional[List[float]] = None
-) -> Dict[Literal["train", "val", "test"], pd.DataFrame]:
+def select_druglike_molecules(data: pd.DataFrame) -> pd.DataFrame:
+    """
+    Apply Lipinski's "Rule of 5" to select drug-like molecules.
+
+    Lipinski's "Rule of 5"
+    Moleculer Weight <= 500
+    -5 <= LogP <= 5
+    H-Bond Donor Count <= 5
+    H-Bond Acceptor Count <= 10
+    3 or more must apply / No more than one violation
+
+    See: https://en.wikipedia.org/wiki/Lipinski%27s_rule_of_five
+    """
+
+    print("Numbe of molecules before druglikeliness selection:", len(data))
+
+    druglike_data = data[
+        (
+            data["MolWt"].between(0, 500)
+            & data["MolLogP"].between(-5, 5)
+            & data["NumHDonors"].between(0, 5)
+        )
+        | (
+            data["MolWt"].between(0, 500)
+            & data["MolLogP"].between(-5, 5)
+            & data["NumHAcceptors"].between(0, 10)
+        )
+        | (
+            data["MolWt"].between(0, 500)
+            & data["NumHAcceptors"].between(0, 10)
+            & data["NumHDonors"].between(0, 5)
+        )
+        | (
+            data["NumHAcceptors"].between(0, 10)
+            & data["MolLogP"].between(-5, 5)
+            & data["NumHDonors"].between(0, 5)
+        )
+    ]
+
+    print("Numbe of druglike molecules:", len(druglike_data))
+
+    return druglike_data
+
+
+def dataset_split(data: pd.DataFrame, frac: Optional[List[float]] = None) -> Datasets:
     """Shuffle the dataset and create random split of the dataset."""
 
-    train_frac, val_frac, _ = [0.7, 0.1, 0.2] if frac is None else frac
+    train_frac, val_frac, test_frac = [0.7, 0.1, 0.2] if frac is None else frac
+    print(
+        f"Splitting the data into {train_frac*100:.2f}% training, {val_frac*100:.2f}% training, and {test_frac*100:.2f}% testing."
+    )
     n_samples = len(data)
     # pylint: disable=unbalanced-tuple-unpacking
     train, val, test = np.split(
         data.sample(frac=1, random_state=42, ignore_index=False),
         [int(train_frac * n_samples), int((train_frac + val_frac) * n_samples)],
     )
-    return {
-        "train": train.reindex(),
-        "val": val,
-        "test": test,
-    }
+    return Datasets(train=train.reindex(), val=val, test=test)
 
 
 def load_tdc_dataset_split(
@@ -169,7 +235,7 @@ def data_preprocessing(
         3. Calculate Descriptors
         4. Calculate Fingerprints
     """
-    filename = f"data/{task.lower()}/raw_dataset.csv" 
+    filename = f"data/{task.lower()}/raw_dataset.csv"
 
     # create directories if necessary
     Path(f"data/{task.lower()}").mkdir(parents=True, exist_ok=True)
@@ -225,6 +291,33 @@ def atompair_fingerprint(smiles):
 
     return atompair_str
 
+
 def convert_strings_to_int_array(string_array: List[str]):
     """Convert an array of strings (numbers) into an array of array of ints."""
-    return np.array([list(string_array[idx]) for idx in range(len(string_array))]).astype(int)
+    return np.array(
+        [list(string_array[idx]) for idx in range(len(string_array))]
+    ).astype(int)
+
+
+def get_feature_groups(datasets, fingerprint_df):
+    """Return instance of `FeatureGroup`."""
+
+    unique_dtypes = set(datasets["train"].dtypes)
+    print(f"Unique Datatypes: {unique_dtypes}")
+
+    continuous_descriptors = list(
+        datasets["train"].select_dtypes(include="float64").columns
+    )
+    discrete_descriptors = list(
+        datasets["train"].select_dtypes(include="int64").columns
+    )
+    discrete_descriptors.remove("Y")
+    fingerprint_features = list(fingerprint_df.columns)
+    for fingerprint_feature in fingerprint_features:
+        discrete_descriptors.remove(fingerprint_feature)
+
+    return FeatureGroup(
+        continuous=continuous_descriptors,
+        discrete=discrete_descriptors,
+        fingerprint=fingerprint_features,
+    )
