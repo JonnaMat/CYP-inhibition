@@ -1,6 +1,6 @@
 /src/data
 /src/__pycache__
-
+/src/catboost_info
 # ignore .cpython_.pyc files
 *.log
 *.pot
