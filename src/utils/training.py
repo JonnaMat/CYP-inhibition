@@ -181,6 +181,7 @@ class BayesianOptimization:
         datasets,
         feature_groups,
         preprocessing_params: Optional[List[Union[Real, Integer, Categorical]]] = None,
+        fix_model_params: Optional[dict] = None,
     ):
         """Constructor for BayesianOptimization of the model `model`.
 
@@ -202,6 +203,7 @@ class BayesianOptimization:
         self.feature_groups = feature_groups
 
         self.model_params = model_params
+        self.fix_model_params = fix_model_params if fix_model_params is not None else {}
         self.preprocessing_params = (
             preprocessing_params
             if preprocessing_params is not None
@@ -209,7 +211,7 @@ class BayesianOptimization:
                 Real(name="var_threshold_continuous", low=0.0, high=0.05),
                 Real(name="var_threshold_discrete", low=0.0, high=0.05),
                 Real(name="var_threshold_fingerprint", low=0.0, high=0.05),
-                Real(name="corr_threshold", low=0.7, high=0.95),
+                Real(name="corr_threshold", low=0.8, high=1.0),
             ]
         )
         self.dimensions = [
@@ -310,7 +312,7 @@ class BayesianOptimization:
         for idx, param in enumerate(model_params):
             named_model_params[self.model_params[idx].name] = param
 
-        model = self.model(**named_model_params)
+        model = self.model(**named_model_params, **self.fix_model_params)
         model.fit(x_train_preprocessed, self.y_train)
 
         return preprocessing_pipeline, model
@@ -323,10 +325,11 @@ class BayesianOptimization:
         y_pred_proba = (
             model.predict_proba(x_val_preprocessed) if self.predict_proba else None
         )
-        metrics = calculate_metrics(self.y_val, y_pred, y_pred_proba)
+        metrics = calculate_metrics(self.y_val, y_pred, y_pred_proba[:,1])
 
         for eval_metric_score in metrics.values():
-            self.file.write(f",{eval_metric_score}\n")
+            self.file.write(f",{eval_metric_score}")
+        self.file.write("\n")
 
         return -1.0 * metrics["accuracy"]
 
