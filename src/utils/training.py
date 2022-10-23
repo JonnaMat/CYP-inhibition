@@ -12,14 +12,14 @@ from sklearn.pipeline import Pipeline
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.dummy import DummyClassifier
-from sklearn.metrics import accuracy_score, ConfusionMatrixDisplay
+from sklearn.metrics import *
 
 from skopt import forest_minimize
 from skopt.space import Real, Integer, Categorical
 
 PYLAB_PARAMS = {
     "legend.fontsize": 14,
-    "figure.figsize": (9 * 1.6, 9),
+    "figure.figsize": (7 * 1.6, 7),
     "axes.labelsize": 16,
     "axes.titlesize": 16,
     "xtick.labelsize": 12,
@@ -139,7 +139,7 @@ class DataPreprocessing:
         )
 
 
-def plot_confusion_matrix(y_val, y_pred, model_name):
+def confusion_matrix(y_val, y_pred, model_name):
     """Plot confusion matrix and output different metrics."""
     plt.style.use("default")
     pylab.rcParams.update(PYLAB_PARAMS)
@@ -181,6 +181,7 @@ class BayesianOptimization:
         datasets,
         feature_groups,
         preprocessing_params: Optional[List[Union[Real, Integer, Categorical]]] = None,
+        fix_model_params: Optional[dict] = None,
     ):
         """Constructor for BayesianOptimization of the model `model`.
 
@@ -202,6 +203,7 @@ class BayesianOptimization:
         self.feature_groups = feature_groups
 
         self.model_params = model_params
+        self.fix_model_params = fix_model_params if fix_model_params is not None else {}
         self.preprocessing_params = (
             preprocessing_params
             if preprocessing_params is not None
@@ -209,7 +211,7 @@ class BayesianOptimization:
                 Real(name="var_threshold_continuous", low=0.0, high=0.05),
                 Real(name="var_threshold_discrete", low=0.0, high=0.05),
                 Real(name="var_threshold_fingerprint", low=0.0, high=0.05),
-                Real(name="corr_threshold", low=0.7, high=0.95),
+                Real(name="corr_threshold", low=0.8, high=1.0),
             ]
         )
         self.dimensions = [
@@ -219,6 +221,19 @@ class BayesianOptimization:
             # Integer(name="select_percentile_fingerprint", low=5, high=50),
             # Categorical(name="score_func", categories=["chi2", "mutual_info_classif"]),
         ]
+        self.metrics = [
+            "accuracy",
+            "f1",
+            "precision",
+            "recall",
+            "mcc",
+        ]
+        predict_proba = getattr(self.model(), "predict_proba", None)
+        if callable(predict_proba):
+            self.metrics += ["roc_auc_score"]
+            self.predict_proba = True
+        else:
+            self.predict_proba = False
 
     def optimize(self, n_calls=50, n_initial_points=10, acq_func="EI"):
         """
@@ -230,7 +245,9 @@ class BayesianOptimization:
 
         for dim in self.dimensions:
             self.file.write(f",{dim.name}")
-        self.file.write(",val_accuracy\n")
+        for metric in self.metrics:
+            self.file.write(f",val_{metric}")
+        self.file.write("\n")
 
         result = forest_minimize(
             self.objective,
@@ -295,7 +312,7 @@ class BayesianOptimization:
         for idx, param in enumerate(model_params):
             named_model_params[self.model_params[idx].name] = param
 
-        model = self.model(**named_model_params)
+        model = self.model(**named_model_params, **self.fix_model_params)
         model.fit(x_train_preprocessed, self.y_train)
 
         return preprocessing_pipeline, model
@@ -304,9 +321,17 @@ class BayesianOptimization:
         """Evaluate `self.model`."""
         x_val_preprocessed = preprocessing_pipeline.transform(self.x_val)
         y_pred = model.predict(x_val_preprocessed)
-        acc_score = accuracy_score(self.y_val, y_pred)
 
-        return -1.0 * acc_score
+        y_pred_proba = (
+            model.predict_proba(x_val_preprocessed) if self.predict_proba else None
+        )
+        metrics = calculate_metrics(self.y_val, y_pred, y_pred_proba[:,1])
+
+        for eval_metric_score in metrics.values():
+            self.file.write(f",{eval_metric_score}")
+        self.file.write("\n")
+
+        return -1.0 * metrics["accuracy"]
 
     def optimization_func(self, params: list):
         """Fit and evaluate `self.model` and the preprocessing pipeline."""
@@ -322,7 +347,7 @@ class BayesianOptimization:
 
         preprocessing_pipeline, model = self.train_objective(params)
         score = self.evaluate_model(preprocessing_pipeline, model)
-        self.file.write(f",{score}\n")
+
         return score
 
     def best_confusion_matrix(self, results: pd.DataFrame):
@@ -334,7 +359,8 @@ class BayesianOptimization:
         x_val_preprocessed = preprocessing_pipeline.transform(self.x_val)
         y_pred = model.predict(x_val_preprocessed)
 
-        plot_confusion_matrix(self.y_val, y_pred, f"Optimized {self.file_name}")
+        confusion_matrix(self.y_val, y_pred, f"Optimized {self.file_name}")
+
 
 def get_baseline(datasets):
     """Plot the Confusion Matri of the Baseline."""
@@ -342,5 +368,23 @@ def get_baseline(datasets):
     baseline.fit(datasets["train"].drop("Y", axis=1), datasets["train"]["Y"])
     y_pred_baseline = baseline.predict(datasets["val"].drop("Y", axis=1))
 
-    plot_confusion_matrix(datasets["val"]["Y"], y_pred_baseline, "Baseline - DummyClassifier")
+    confusion_matrix(
+        datasets["val"]["Y"], y_pred_baseline, "Baseline - DummyClassifier"
+    )
     plt.show()
+
+
+def calculate_metrics(y_true, y_pred, y_pred_proba: Optional[List] = None):
+    """Return various metrics."""
+    # metric_names = ["accuracy","f1","precision","recall","mcc"]
+    metrics = {
+        "accuracy": accuracy_score(y_true, y_pred),
+        "f1": f1_score(y_true, y_pred),
+        "precision": precision_score(y_true, y_pred),
+        "recall": recall_score(y_true, y_pred),
+        "mcc": matthews_corrcoef(y_true, y_pred),
+    }
+    if y_pred_proba is not None:
+        metrics["roc_auc_score"] = roc_auc_score(y_true, y_pred_proba)
+
+    return metrics
