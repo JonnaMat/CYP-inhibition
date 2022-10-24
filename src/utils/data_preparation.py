@@ -314,7 +314,8 @@ def get_feature_groups(datasets, fingerprint_df):
     discrete_descriptors.remove("Y")
     fingerprint_features = list(fingerprint_df.columns)
     for fingerprint_feature in fingerprint_features:
-        discrete_descriptors.remove(fingerprint_feature)
+        if fingerprint_feature in discrete_descriptors:
+            discrete_descriptors.remove(fingerprint_feature)
 
     return FeatureGroup(
         continuous=continuous_descriptors,

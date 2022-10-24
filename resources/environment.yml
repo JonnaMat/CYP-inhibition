@@ -2,11 +2,15 @@ name: cypp450
 dependencies:
   - numpy
   - pandas
-  - python=3.7
+  - python=3.9
   - plotly
   - typing
   - molvs
   - rdkit
   - PyTDC
-  - feature-engine
   - scikit-optimize
+  - pandas-profiling[notebook]
+  - feature_engine
+  - mlxtend
+  - xgboost
+  - catboost
