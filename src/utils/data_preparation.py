@@ -157,7 +157,7 @@ def dataset_split(data: pd.DataFrame, frac: Optional[List[float]] = None) -> Dat
 
     train_frac, val_frac, test_frac = [0.7, 0.1, 0.2] if frac is None else frac
     print(
-        f"Splitting the data into {train_frac*100:.2f}% training, {val_frac*100:.2f}% training, and {test_frac*100:.2f}% testing."
+        f"Splitting the data into {train_frac*100:.2f}% training, {val_frac*100:.2f}% validation, and {test_frac*100:.2f}% testing."
     )
     n_samples = len(data)
     # pylint: disable=unbalanced-tuple-unpacking

@@ -1,6 +1,7 @@
 """Data preprocessing Pipelines and model training."""
 
 from typing import Literal, Dict, Optional, Union, List
+from os.path import exists
 import numpy as np
 import pandas as pd
 from feature_engine.selection import DropCorrelatedFeatures
@@ -12,6 +13,9 @@ from sklearn.pipeline import Pipeline
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.dummy import DummyClassifier
+
+# pylint: disable=wildcard-import
+# pylint: disable=unused-wildcard-import
 from sklearn.metrics import *
 
 from skopt import forest_minimize
@@ -139,7 +143,7 @@ class DataPreprocessing:
         )
 
 
-def confusion_matrix(y_val, y_pred, model_name):
+def conf_matrix(y_val, y_pred, model_name):
     """Plot confusion matrix and output different metrics."""
     plt.style.use("default")
     pylab.rcParams.update(PYLAB_PARAMS)
@@ -196,8 +200,15 @@ class BayesianOptimization:
         self.y_val = datasets["val"]["Y"]
         self.model = model
         self.file_name = file_name
-        self.file_loc = f"optimization/{self.file_name}"
-        self.file = open(self.file_loc, "a", encoding="utf-8")
+        self.file_loc = f"optimization/{self.file_name}.csv"
+        if exists(self.file_loc):
+            self.results = pd.read_csv(self.file_loc, comment="#").drop(
+                "Unnamed: 0", axis=1
+            )
+        else:
+            self.file = open(self.file_loc, "w", encoding="utf-8")
+            self.file.write(f"# {fix_model_params}\n")
+            self.results = None
         self.run_counter = 0
 
         self.feature_groups = feature_groups
@@ -212,15 +223,12 @@ class BayesianOptimization:
                 Real(name="var_threshold_discrete", low=0.0, high=0.05),
                 Real(name="var_threshold_fingerprint", low=0.0, high=0.05),
                 Real(name="corr_threshold", low=0.8, high=1.0),
+                # Integer(name="select_percentile_discrete", low=5, high=50),
+                # Integer(name="select_percentile_fingerprint", low=5, high=50),
+                # Categorical(name="score_func", categories=["chi2", "mutual_info_classif"]),
             ]
         )
-        self.dimensions = [
-            *model_params,
-            *self.preprocessing_params
-            # Integer(name="select_percentile_discrete", low=5, high=50),
-            # Integer(name="select_percentile_fingerprint", low=5, high=50),
-            # Categorical(name="score_func", categories=["chi2", "mutual_info_classif"]),
-        ]
+        self.dimensions = [*model_params, *self.preprocessing_params]
         self.metrics = [
             "accuracy",
             "f1",
@@ -230,7 +238,7 @@ class BayesianOptimization:
         ]
         predict_proba = getattr(self.model(), "predict_proba", None)
         if callable(predict_proba):
-            self.metrics += ["roc_auc_score"]
+            self.metrics += ["roc_auc_score", "average_precision_score"]
             self.predict_proba = True
         else:
             self.predict_proba = False
@@ -242,6 +250,8 @@ class BayesianOptimization:
         After each evaluation of the objective function a checkoint will be stored.
         This allows training to be stopped and continued any time.
         """
+        if self.results is not None:
+            return
 
         for dim in self.dimensions:
             self.file.write(f",{dim.name}")
@@ -265,8 +275,9 @@ class BayesianOptimization:
             print(f"- {parameter.name} = {value}")
 
         self.file.close()
-
-        return pd.read_csv(self.file_loc).drop("Unnamed: 0", axis=1)
+        self.results = pd.read_csv(self.file_loc, comment="#").drop(
+            "Unnamed: 0", axis=1
+        )
 
     def train_objective(self, params: list):
         """Train `self.model` + Preprocess data given `params`.
@@ -323,9 +334,11 @@ class BayesianOptimization:
         y_pred = model.predict(x_val_preprocessed)
 
         y_pred_proba = (
-            model.predict_proba(x_val_preprocessed) if self.predict_proba else None
+            model.predict_proba(x_val_preprocessed)[:, 1]
+            if self.predict_proba
+            else None
         )
-        metrics = calculate_metrics(self.y_val, y_pred, y_pred_proba[:,1])
+        metrics = calculate_metrics(self.y_val, y_pred, y_pred_proba)
 
         for eval_metric_score in metrics.values():
             self.file.write(f",{eval_metric_score}")
@@ -350,16 +363,13 @@ class BayesianOptimization:
 
         return score
 
-    def best_confusion_matrix(self, results: pd.DataFrame):
-        """Plot confusion matrix and output different metrics."""
-        best_params = list(
-            results.sort_values("val_accuracy").iloc[0].drop("val_accuracy")
-        )
-        preprocessing_pipeline, model = self.train_objective(best_params)
+    def get_predictions(self, params: list):
+        """Predictions of model given parameters."""
+        preprocessing_pipeline, model = self.train_objective(params)
         x_val_preprocessed = preprocessing_pipeline.transform(self.x_val)
         y_pred = model.predict(x_val_preprocessed)
-
-        confusion_matrix(self.y_val, y_pred, f"Optimized {self.file_name}")
+        y_pred_proba = model.predict_proba(x_val_preprocessed)[:,1] if self.predict_proba else None
+        return y_pred, y_pred_proba
 
 
 def get_baseline(datasets):
@@ -368,13 +378,11 @@ def get_baseline(datasets):
     baseline.fit(datasets["train"].drop("Y", axis=1), datasets["train"]["Y"])
     y_pred_baseline = baseline.predict(datasets["val"].drop("Y", axis=1))
 
-    confusion_matrix(
-        datasets["val"]["Y"], y_pred_baseline, "Baseline - DummyClassifier"
-    )
+    conf_matrix(datasets["val"]["Y"], y_pred_baseline, "Baseline - DummyClassifier")
     plt.show()
 
 
-def calculate_metrics(y_true, y_pred, y_pred_proba: Optional[List] = None):
+def calculate_metrics(y_true, y_pred, y_predict_proba: Optional[List] = None):
     """Return various metrics."""
     # metric_names = ["accuracy","f1","precision","recall","mcc"]
     metrics = {
@@ -384,7 +392,34 @@ def calculate_metrics(y_true, y_pred, y_pred_proba: Optional[List] = None):
         "recall": recall_score(y_true, y_pred),
         "mcc": matthews_corrcoef(y_true, y_pred),
     }
-    if y_pred_proba is not None:
-        metrics["roc_auc_score"] = roc_auc_score(y_true, y_pred_proba)
-
+    if y_predict_proba is not None:
+        metrics["roc_auc_score"] = roc_auc_score(y_true, y_predict_proba)
+        metrics["average_precision_score"] = average_precision_score(
+            y_true, y_predict_proba
+        )
     return metrics
+
+
+def compare_metric_curves(classifiers: Dict[str, list], y_true):
+    """
+    Compare ROC; DET and Precision-recall curves of classifiers in `classifiers`.
+
+    `classifiers` is of the form: `{str(name of classifier) : y_predict_proba}`.
+    """
+    # prepare plots
+    plt.style.use("seaborn-darkgrid")
+    _, [ax_roc, ax_det, ax_pr] = plt.subplots(1, 3, figsize=(20, 7))
+    ax_roc.set_title("ROC curve")
+    ax_det.set_title("DET curve")
+    ax_pr.set_title("Precision-Recall curve")
+    for classifier_name, y_pred_proba in classifiers.items():
+        PrecisionRecallDisplay.from_predictions(
+            y_true, y_pred_proba, name=classifier_name, ax=ax_pr
+        )
+        DetCurveDisplay.from_predictions(
+            y_true, y_pred_proba, name=classifier_name, ax=ax_det
+        )
+        RocCurveDisplay.from_predictions(
+            y_true, y_pred_proba, name=classifier_name, ax=ax_roc
+        )
+    plt.tight_layout()
