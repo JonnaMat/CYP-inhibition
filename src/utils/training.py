@@ -368,8 +368,34 @@ class BayesianOptimization:
         preprocessing_pipeline, model = self.train_objective(params)
         x_val_preprocessed = preprocessing_pipeline.transform(self.x_val)
         y_pred = model.predict(x_val_preprocessed)
-        y_pred_proba = model.predict_proba(x_val_preprocessed)[:,1] if self.predict_proba else None
+        y_pred_proba = (
+            model.predict_proba(x_val_preprocessed)[:, 1]
+            if self.predict_proba
+            else None
+        )
         return y_pred, y_pred_proba
+
+    def pretty_results(self, **kwargs):
+        """Return `self.results` with highlighted best results."""
+        metric_columns = list(self.results.filter(regex="val_"))
+
+        return pretty_print_df(
+            self.results.sort_values("val_accuracy", ascending=False),
+            subset=metric_columns,
+            **kwargs
+        )
+
+
+def pretty_print_df(
+    data_sorted: pd.DataFrame, subset: list, highlight_color="darkgreen", quantile=0.95
+):
+    """Return `data_sorted` with highlighted best results and quantile."""
+    return data_sorted.style.highlight_quantile(
+        subset=subset,
+        props="font-weight:bold; color:#fffd75",
+        axis=0,
+        q_left=quantile,
+    ).highlight_max(color=highlight_color, axis=0, subset=subset)
 
 
 def get_baseline(datasets):

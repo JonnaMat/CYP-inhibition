@@ -14,3 +14,4 @@ dependencies:
   - mlxtend
   - xgboost
   - catboost
+  - Jinja2
