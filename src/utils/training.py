@@ -390,7 +390,7 @@ def pretty_print_df(
     data_sorted: pd.DataFrame, subset: list, highlight_color="darkgreen", quantile=0.95
 ):
     """Return `data_sorted` with highlighted best results and quantile."""
-    return data_sorted.style.highlight_quantile(
+    return data_sorted.head().style.highlight_quantile(
         subset=subset,
         props="font-weight:bold; color:#fffd75",
         axis=0,
