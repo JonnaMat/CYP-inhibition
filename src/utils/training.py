@@ -13,6 +13,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.dummy import DummyClassifier
+from sklearn.ensemble import RandomForestClassifier
 
 # pylint: disable=wildcard-import
 # pylint: disable=unused-wildcard-import
@@ -143,12 +144,14 @@ class DataPreprocessing:
         )
 
 
-def conf_matrix(y_val, y_pred, model_name):
+def conf_matrix(y_val, y_pred, model_name, **kwargs):
     """Plot confusion matrix and output different metrics."""
     plt.style.use("default")
     pylab.rcParams.update(PYLAB_PARAMS)
     print(f"Accuracy: {accuracy_score(y_val, y_pred)*100:.2f}%")
-    ConfusionMatrixDisplay.from_predictions(y_val, y_pred, cmap="Blues")
+    print(f"F1-score: {f1_score(y_val, y_pred)*100:.2f}%")
+    print(f"Matthews correlation coefficient: {matthews_corrcoef(y_val, y_pred)}%")
+    ConfusionMatrixDisplay.from_predictions(y_val, y_pred, cmap="Blues", **kwargs)
     plt.title(f"{model_name}\nConfusion Matrix")
     plt.show()
 
@@ -186,6 +189,7 @@ class BayesianOptimization:
         feature_groups,
         preprocessing_params: Optional[List[Union[Real, Integer, Categorical]]] = None,
         fix_model_params: Optional[dict] = None,
+        main_metric: Optional[str] = "accuracy",
     ):
         """Constructor for BayesianOptimization of the model `model`.
 
@@ -207,7 +211,8 @@ class BayesianOptimization:
             )
         else:
             self.file = open(self.file_loc, "w", encoding="utf-8")
-            self.file.write(f"# {fix_model_params}\n")
+            self.file.write(f"# {fix_model_params},")
+            self.file.write(f"main_metric={main_metric}\n")
             self.results = None
         self.run_counter = 0
 
@@ -242,6 +247,8 @@ class BayesianOptimization:
             self.predict_proba = True
         else:
             self.predict_proba = False
+
+        self.main_metric = main_metric
 
     def optimize(self, n_calls=50, n_initial_points=10, acq_func="EI"):
         """
@@ -344,7 +351,7 @@ class BayesianOptimization:
             self.file.write(f",{eval_metric_score}")
         self.file.write("\n")
 
-        return -1.0 * metrics["accuracy"]
+        return -1.0 * metrics[self.main_metric]
 
     def optimization_func(self, params: list):
         """Fit and evaluate `self.model` and the preprocessing pipeline."""
@@ -380,9 +387,9 @@ class BayesianOptimization:
         metric_columns = list(self.results.filter(regex="val_"))
 
         return pretty_print_df(
-            self.results.sort_values("val_accuracy", ascending=False),
+            self.results.sort_values(f"val_{self.main_metric}", ascending=False),
             subset=metric_columns,
-            **kwargs
+            **kwargs,
         )
 
 
@@ -390,12 +397,16 @@ def pretty_print_df(
     data_sorted: pd.DataFrame, subset: list, highlight_color="darkgreen", quantile=0.95
 ):
     """Return `data_sorted` with highlighted best results and quantile."""
-    return data_sorted.style.highlight_quantile(
-        subset=subset,
-        props="font-weight:bold; color:#fffd75",
-        axis=0,
-        q_left=quantile,
-    ).highlight_max(color=highlight_color, axis=0, subset=subset)
+    return (
+        data_sorted.head()
+        .style.highlight_quantile(
+            subset=subset,
+            props="font-weight:bold; color:#fffd75",
+            axis=0,
+            q_left=quantile,
+        )
+        .highlight_max(color=highlight_color, axis=0, subset=subset)
+    )
 
 
 def get_baseline(datasets):
@@ -449,3 +460,34 @@ def compare_metric_curves(classifiers: Dict[str, list], y_true):
             y_true, y_pred_proba, name=classifier_name, ax=ax_roc
         )
     plt.tight_layout()
+
+
+def train_random_forest_depth(
+    file_path, x_train_preprocessed, x_val_preprocessed, y_train, y_val, class_weight = None
+):
+    if exists(f"{file_path}.csv"):
+        return pd.read_csv(f"{file_path}.csv", comment="#").drop("Unnamed: 0", axis=1)
+
+    metric_names = ["accuracy", "f1", "precision", "recall", "mcc", "roc_auc_score", "average_precision_score"]
+
+    with open(f"{file_path}.csv", "w") as f:
+        f.write(f"# class_weight={class_weight}\n")
+        f.write(",max_depth")
+        for metric_name in metric_names:
+            f.write(f",val_{metric_name}")
+        f.write("\n")
+        for max_depth in range(3, 61):
+            rf = RandomForestClassifier(max_depth=max_depth, class_weight=class_weight, n_jobs=-1)
+            rf.fit(x_train_preprocessed, y_train)
+            y_pred = rf.predict(x_val_preprocessed)
+            y_pred_proba = rf.predict_proba(x_val_preprocessed)[:, 1]
+
+            metrics = calculate_metrics(y_val, y_pred, y_pred_proba)
+            print(f"Completed run {max_depth}/{60}: max_depth={max_depth}")
+            f.write(f"{max_depth-3}, {max_depth}")
+            for metric_value in metrics.values():
+                f.write(f",{metric_value}")
+            f.write("\n")
+
+    rf_results = pd.read_csv(f"{file_path}.csv", comment="#").drop("Unnamed: 0", axis=1)
+    return rf_results
