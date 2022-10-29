@@ -51,13 +51,6 @@ class DataPreprocessing:
         self.feature_groups = feature_groups
 
         var_threshold = var_threshold if var_threshold is not None else {}
-        # select_percentile = select_percentile if select_percentile is not None else {}
-        # if score_func is None:
-        #     score_func = mutual_info_classif
-        # elif score_func == "chi2":
-        #     score_func = chi2
-        # else:
-        #     score_func = mutual_info_classif
 
         self.continuous_preprocessing = Pipeline(
             steps=[  # DropCorrelatedFeatures needs to be first since it takes a DataFrame as input
@@ -87,13 +80,6 @@ class DataPreprocessing:
                     VarianceThreshold(threshold=var_threshold.get("discrete", 0.0)),
                 ),
                 ("min_max_normalization", MinMaxScaler()),
-                # (
-                #     "select_percentile",
-                #     SelectPercentile(
-                #         score_func=score_func,
-                #         percentile=select_percentile.get("discrete", 10),
-                #     ),
-                # ),
             ]
         )
 
@@ -103,13 +89,6 @@ class DataPreprocessing:
                     "drop_zero_var",
                     VarianceThreshold(threshold=var_threshold.get("fingerprint", 0.0)),
                 ),
-                # (
-                #     "select_percentile",
-                #     SelectPercentile(
-                #         score_func=score_func,
-                #         percentile=select_percentile.get("fingerprint", 10),
-                #     ),
-                # ),
             ]
         )
 
@@ -234,9 +213,6 @@ class BayesianOptimization:
                 Real(name="var_threshold_discrete", low=0.0, high=0.05),
                 Real(name="var_threshold_fingerprint", low=0.0, high=0.05),
                 Real(name="corr_threshold", low=0.8, high=1.0),
-                # Integer(name="select_percentile_discrete", low=5, high=50),
-                # Integer(name="select_percentile_fingerprint", low=5, high=50),
-                # Categorical(name="score_func", categories=["chi2", "mutual_info_classif"]),
             ]
         )
         self.dimensions = [*model_params, *self.preprocessing_params]
@@ -303,9 +279,6 @@ class BayesianOptimization:
             var_threshold_discrete,
             var_threshold_fingerprint,
             corr_threshold,
-            # select_percentile_discrete,
-            # select_percentile_fingerprint,
-            # score_func
         ) = params
 
         # Preprocessing
@@ -317,11 +290,6 @@ class BayesianOptimization:
                 "fingerprint": var_threshold_fingerprint,
             },
             corr_threshold=corr_threshold,
-            # select_percentile={
-            #     "discrete": select_percentile_discrete,
-            #     "fingerprint": select_percentile_fingerprint,
-            # },
-            # score_func=score_func,
         )
         preprocessing_pipeline.fit(self.x_train, self.y_train)
         x_train_preprocessed = preprocessing_pipeline.transform(self.x_train)
