@@ -144,15 +144,21 @@ class DataPreprocessing:
         )
 
 
-def conf_matrix(y_val, y_pred, model_name, **kwargs):
+def conf_matrix(y_val, y_pred, model_name):
     """Plot confusion matrix and output different metrics."""
     plt.style.use("default")
     pylab.rcParams.update(PYLAB_PARAMS)
     print(f"Accuracy: {accuracy_score(y_val, y_pred)*100:.2f}%")
     print(f"F1-score: {f1_score(y_val, y_pred)*100:.2f}%")
     print(f"Matthews correlation coefficient: {matthews_corrcoef(y_val, y_pred)}%")
-    ConfusionMatrixDisplay.from_predictions(y_val, y_pred, cmap="Blues", **kwargs)
-    plt.title(f"{model_name}\nConfusion Matrix")
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(7*1.6, 5))
+    fig.suptitle(f"{model_name}\nConfusion Matrix")
+    ax1.set_title("Normalized values")
+    ConfusionMatrixDisplay.from_predictions(y_val, y_pred, cmap="Blues", ax=ax1, normalize="true")
+    ax2.set_title("Absolute values")
+    ConfusionMatrixDisplay.from_predictions(y_val, y_pred, cmap="Blues", ax=ax2)
+    
     plt.show()
 
 
