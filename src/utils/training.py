@@ -196,8 +196,10 @@ class BayesianOptimization:
             )
         else:
             self.file = open(self.file_loc, "w", encoding="utf-8")
-            self.file.write(f"# {fix_model_params},")
-            self.file.write(f"main_metric={main_metric}\n")
+            self.file.write(f"# fix_model_params={fix_model_params}\n")
+            self.file.write(f"# main_metric={main_metric}\n")
+            self.file.write(f"# model_params={model_params}\n")
+            self.file.write(f"# preprocessing_params={preprocessing_params}\n")
             self.results = None
         self.run_counter = 0
 
@@ -342,6 +344,10 @@ class BayesianOptimization:
         preprocessing_pipeline, model = self.train_objective(params)
         score = self.evaluate_model(preprocessing_pipeline, model)
 
+        print("Save results.")
+        self.file.close()
+        self.file = open(self.file_loc, "a", encoding="utf-8")
+
         return score
 
     def get_predictions(self, params: list):
@@ -424,15 +430,35 @@ def compare_metric_curves(classifiers: Dict[str, list], y_true):
     ax_det.set_title("DET curve")
     ax_pr.set_title("Precision-Recall curve")
     for classifier_name, y_pred_proba in classifiers.items():
+        # PrecisionRecallCurve
         PrecisionRecallDisplay.from_predictions(
             y_true, y_pred_proba, name=classifier_name, ax=ax_pr
         )
+        precision, recall, thresholds = precision_recall_curve(y_true, y_pred_proba)
+        fscore = (2 * precision * recall) / (precision + recall)
+        # locate the index of the largest g-mean
+        ix = np.argmax(fscore)
+        ax_pr.scatter(recall[ix], precision[ix], marker='o', color='black', label='Best')
+        print(f"Best Precision-Recall Threshold={thresholds[ix]}")
+
+        
+        # DET
         DetCurveDisplay.from_predictions(
             y_true, y_pred_proba, name=classifier_name, ax=ax_det
         )
+
+        # ROC
         RocCurveDisplay.from_predictions(
             y_true, y_pred_proba, name=classifier_name, ax=ax_roc
         )
+        fpr, tpr, thresholds = roc_curve(y_true, y_pred_proba)
+        # calculate the g-mean for each threshold
+        gmeans = np.sqrt(tpr * (1-fpr))
+        # locate the index of the largest g-mean
+        ix = np.argmax(gmeans)
+        ax_roc.scatter(fpr[ix], tpr[ix], marker='o', color='black', label='Best')
+        print(f"Best ROC Threshold={thresholds[ix]}")
+
     plt.tight_layout()
 
 
