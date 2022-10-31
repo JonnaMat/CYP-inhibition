@@ -1,0 +1,11 @@
+# false_negative_rate : bottom left
+# false_positive_rate : top right
+# main_metric = "mcc"
+# class_weight = "balanced"
+model,val_accuracy,val_f1,val_mcc,false_negative_rate,false_positive_rate
+SVC,0.83,0.77,0.64,0.16,0.17
+RandomForest,0.82,0.73,0.6,0.25,0.15
+LogisticRegression,0.82,0.75,0.62,0.18,0.18
+CatBoost,0.84,0.77,0.65,0.23,0.12
+KNN,0.78,0.61,0.47,0.48,0.095
+XGBoost_0,0.84,0.77,0.65,0.2,0.14
