@@ -1,9 +1,0 @@
-model,val_accuracy,val_f1,val_mcc
-GaussianNB,72.03,52.1,0.41
-KNN,87.08,59.55,0.53
-Logistic Regression,82.88,60.73,0.51
-Random Forest,87.4,61.69,0.55
-XGBoost,88.75,68.3,0.62
-CatBoost,87,67.46,0.60
-SVC,89.14,66.83,0.61
-Weighted SVC,86.61,67.44,0.59 

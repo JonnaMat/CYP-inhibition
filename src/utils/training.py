@@ -187,6 +187,8 @@ class BayesianOptimization:
         self.y_train = datasets["train"]["Y"]
         self.x_val = datasets["val"].drop("Y", axis=1)
         self.y_val = datasets["val"]["Y"]
+        self.x_test = datasets["test"].drop("Y", axis=1)
+        self.y_test = datasets["test"]["Y"]
         self.model = model
         self.file_name = file_name
         self.file_loc = f"optimization/{self.file_name}.csv"
@@ -357,6 +359,18 @@ class BayesianOptimization:
         y_pred = model.predict(x_val_preprocessed)
         y_pred_proba = (
             model.predict_proba(x_val_preprocessed)[:, 1]
+            if self.predict_proba
+            else None
+        )
+        return y_pred, y_pred_proba
+
+    def get_predictions_test(self, params: list):
+        """Predictions of model given parameters."""
+        preprocessing_pipeline, model = self.train_objective(params)
+        x_test_preprocessed = preprocessing_pipeline.transform(self.x_test)
+        y_pred = model.predict(x_test_preprocessed)
+        y_pred_proba = (
+            model.predict_proba(x_test_preprocessed)[:, 1]
             if self.predict_proba
             else None
         )

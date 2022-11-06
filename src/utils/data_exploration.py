@@ -3,12 +3,20 @@
 from collections import Counter
 from typing import List, Optional, Tuple, Literal
 import matplotlib.pyplot as plt
+import matplotlib.pylab as pylab
 import seaborn as sns
 import pandas as pd
 import numpy as np
 from scipy.cluster.hierarchy import dendrogram
 from sklearn.cluster import AgglomerativeClustering
-
+PYLAB_PARAMS = {
+    "legend.fontsize": 14,
+    "figure.figsize": (7 * 1.6, 7),
+    "axes.labelsize": 16,
+    "axes.titlesize": 20,
+    "xtick.labelsize": 12,
+    "ytick.labelsize": 12,
+}
 
 def plot_counts(
     data: List,
@@ -19,24 +27,29 @@ def plot_counts(
     legend_labels: Optional[List] = None,
 ):
     """Create one plot for each data/title pair of kind `kind`."""
+    plt.style.use("seaborn-darkgrid")
+    pylab.rcParams.update(PYLAB_PARAMS)
     _, axes = plt.subplots(1, len(data), figsize=(20, 5), squeeze=False)
     axes = axes[0]
+    legend = None
 
-    plt.suptitle(suptitle, fontsize=16)
+    if suptitle is not None:
+        plt.suptitle(suptitle, fontsize=16)
 
     for axis, (dat, title) in zip(axes, zip(data, titles)):
-        axis.set_title(title)
+        axis.set_title(title, fontweight="bold")
 
         if kind == "pie":
             counts = Counter(list(dat))
-            legend_labels = counts.keys() if legend_labels is None else legend_labels
+            legend = counts.keys() if legend is None else legend
             axis.pie(
-                [counts[label] for label in legend_labels],
+                [counts[label] for label in legend],
                 startangle=90,
                 wedgeprops={"edgecolor": "black"},
                 autopct="%1.f%%",
                 explode=(0, 0.1),
                 shadow=True,
+                textprops={'fontsize': 18}
             )
             plt.legend(title=legend_title, labels=legend_labels, loc="lower right")
 
