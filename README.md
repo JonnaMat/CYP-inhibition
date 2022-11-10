@@ -25,12 +25,5 @@ c.a. 3 months (one term, from late August to November)
 **Contact:** 
 industry mentors (AstraZeneca): 
 * Dr. Vigneshwari Subramanian, Senior Data Scientist, Data Science and AI group (Clinical
-Pharmacology and Safety Sciences), Sweden. vigneshwari.subramanian@astrazeneca.com
-* Dr. Avid Afzal, Senior Data Scientist, Data Sciences and Quantitative Biology, Cambridge.
-avid.afzal1@astrazeneca.com
-
-
-# Organization
-
-* Current tasks can be found under *Issues*
-* **LiteratureReview:** Add main insights to Notion and include reference / source: https://www.notion.so/AstraZeneca-Machine-Learning-models-on-Cytochrome-P450s-c80a83fe1e6948e1981f3b29cd9c6d7b
+Pharmacology and Safety Sciences), Sweden.
+* Dr. Avid Afzal, Senior Data Scientist, Data Sciences and Quantitative Biology,Cambridge.
