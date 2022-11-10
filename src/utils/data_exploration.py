@@ -24,7 +24,6 @@ def plot_counts(
     legend_title: str,
     suptitle: Optional[str] = None,
     kind: Literal["bar", "pie"] = "pie",
-    legend_labels: Optional[List] = None,
 ):
     """Create one plot for each data/title pair of kind `kind`."""
     plt.style.use("seaborn-darkgrid")
@@ -51,7 +50,7 @@ def plot_counts(
                 shadow=True,
                 textprops={'fontsize': 18}
             )
-            plt.legend(title=legend_title, labels=legend_labels, loc="lower right")
+            plt.legend(title=legend_title, labels=legend,loc="lower right")
 
         elif kind == "bar":
             ncount = len(dat)

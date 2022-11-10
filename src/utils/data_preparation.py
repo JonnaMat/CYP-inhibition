@@ -122,7 +122,7 @@ def select_druglike_molecules(data: pd.DataFrame) -> pd.DataFrame:
     See: https://en.wikipedia.org/wiki/Lipinski%27s_rule_of_five
     """
 
-    print("Numbe of molecules before druglikeliness selection:", len(data))
+    print("Number of molecules before druglikeliness selection:", len(data))
 
     druglike_data = data[
         (
@@ -147,7 +147,7 @@ def select_druglike_molecules(data: pd.DataFrame) -> pd.DataFrame:
         )
     ]
 
-    print("Numbe of druglike molecules:", len(druglike_data))
+    print("Number of druglike molecules:", len(druglike_data))
 
     return druglike_data
 
