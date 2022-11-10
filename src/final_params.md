@@ -89,32 +89,48 @@ corr\_threshold            &  0.842173 \\
 
 # CYP2D6
 
-svc_0 = BayesianOptimization(
-    model=SVC,
-    file_name=f"{task}/mcc/svc_0", 
+xgboost_0 = BayesianOptimization(
+    model=XGBClassifier,
+    file_name=f"{task}/mcc/xgboost_3",
     model_params=[
-        Real(name="C", low=0.1, high=4.0)
+        Integer(name="max_depth", low=5, high=50),
+        Real(name="eta", low=0.01, high=0.2),
+        Real(name="subsample", low=0.5, high=1),
+        Real(name="scale_pos_weight", low=max(1, n_negative / n_positive - 1), high=10),
+        Real(name="colsample_bytree", low=0.5, high=1.0),
+        Real(name="lambda", low=0.5, high=4.0),
     ],
-    fix_model_params={"class_weight": "balanced"},
+    fix_model_params={"objective": "binary:logistic", "eval_metric": "aucpr"},
     datasets=datasets,
     feature_groups=feature_groups,
-    main_metric="mcc"
+    main_metric="mcc",
 )
-[1.5198798389940014,
- 0.0021614570564925,
- 0.0129857353885148,
- 0.0001530737007939,
- 0.9586706863658084]
+
+[17,
+ 0.1184769179982453,
+ 0.9161494094487443,
+ 8.24730664960802,
+ 0.9735210994685166,
+ 3.3115968387668127,
+ 0.0016424271418347,
+ 0.0032084703916408,
+ 0.0125493960276156,
+ 0.9858382714381372]
 
 \begin{tabular}{lr}
 \toprule
-{} &        19 \\
+{} &         43 \\
 \midrule
-C                         &  1.519880 \\
-var\_threshold\_continuous  &  0.002161 \\
-var\_threshold\_discrete    &  0.012986 \\
-var\_threshold\_fingerprint &  0.000153 \\
-corr\_threshold            &  0.958671 \\
+max\_depth                 &  17.000000 \\
+eta                       &   0.118477 \\
+subsample                 &   0.916149 \\
+scale\_pos\_weight          &   8.247307 \\
+colsample\_bytree          &   0.973521 \\
+lambda                    &   3.311597 \\
+var\_threshold\_continuous  &   0.001642 \\
+var\_threshold\_discrete    &   0.003208 \\
+var\_threshold\_fingerprint &   0.012549 \\
+corr\_threshold            &   0.985838 \\
 \bottomrule
 \end{tabular}
 
@@ -159,3 +175,35 @@ corr\_threshold            &  0.875925 \\
  0.0346349723122983,
  0.0212049898683141,
  0.8759253469625337]
+
+# CYP2C19
+
+svc_0 = BayesianOptimization(
+    model=SVC,
+    file_name=f"{task}/svc_0", 
+    model_params=[
+        Real(name="C", low=0.1, high=4.0)
+    ],
+    fix_model_params={"class_weight": "balanced"},
+    datasets=datasets,
+    feature_groups=feature_groups,
+    main_metric="mcc"
+)
+
+\begin{tabular}{lr}
+\toprule
+{} &        12 \\
+\midrule
+C                         &  1.306832 \\
+var\_threshold\_continuous  &  0.016017 \\
+var\_threshold\_discrete    &  0.027299 \\
+var\_threshold\_fingerprint &  0.002842 \\
+corr\_threshold            &  0.972394 \\
+\bottomrule
+\end{tabular}
+
+[1.306832476304444,
+ 0.0160173437456012,
+ 0.027299499634864,
+ 0.0028418657614325,
+ 0.972393690403298]
